@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/types.ts","./src/components/sidebar.tsx","./src/components/techniciandrawer.tsx","./src/components/ui.tsx","./src/data/mock.ts","./src/lib/retention.ts","./src/views/auditview.tsx","./src/views/executiveview.tsx","./src/views/ingestionview.tsx","./src/views/techniciansview.tsx","./vite.config.ts"],"version":"5.6.3"}
