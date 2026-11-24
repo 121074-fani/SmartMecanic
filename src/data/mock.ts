@@ -192,6 +192,7 @@ export const INITIAL_TECHNICIANS: Technician[] = seeds.map((s) => ({
   reviews: s.reviews,
   ire: s.ire,
   log: log(s.id, s.log),
+  reinforcement: null,
 }));
 
 /* ───────────── Vista 1: curvas agregadas y errores ───────────── */

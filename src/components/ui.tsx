@@ -46,7 +46,7 @@ export function KpiCard({
         <span className={`grid h-8 w-8 place-items-center rounded-lg bg-base-850 ring-1 ${toneMap}`}>{icon}</span>
       </div>
       <div className="mt-2 flex items-baseline gap-1.5">
-        <span className="text-3xl font-semibold tracking-tight text-white tabular-nums">{value}</span>
+        <span className="text-3xl font-semibold tracking-tight text-fg tabular-nums">{value}</span>
         {unit && <span className="text-sm text-slate-400">{unit}</span>}
       </div>
       <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
@@ -118,7 +118,7 @@ export function SectionProgress({ sections, compact = false }: { sections: Modul
                 style={{ width: `${locked ? 0 : s.progress}%` }}
               />
               {!compact && (
-                <span className="absolute inset-0 flex items-center justify-center gap-1 text-[10px] font-semibold text-white/90">
+                <span className="absolute inset-0 flex items-center justify-center gap-1 text-[10px] font-semibold text-fg/90">
                   {locked ? <Lock size={10} className="text-amber-300" /> : done ? <CheckCircle2 size={10} /> : null}
                   S{s.id}
                 </span>
@@ -180,7 +180,7 @@ export function PageHeader({ eyebrow, title, desc, right }: { eyebrow: string; t
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-petrol-400">{eyebrow}</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white">{title}</h1>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-fg">{title}</h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-400">{desc}</p>
       </div>
       {right}

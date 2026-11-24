@@ -59,6 +59,16 @@ export interface Technician {
   reviews: ReviewPoint[];
   ire: IreBreakdown;
   log: FeedbackEntry[];
+  /** Examen de refuerzo activado por el administrador solo para este técnico. */
+  reinforcement: ReinforcementExam | null;
+}
+
+export interface ReinforcementExam {
+  category: ErrorCategory;
+  activatedDay: number;
+  activatedAt: string;
+  questions: number;
+  reason: string;
 }
 
 export interface TorqueSpec {

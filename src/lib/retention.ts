@@ -141,6 +141,94 @@ const fmtDate = (day: number) => {
 };
 export const dayToDate = fmtDate;
 
+/* ───────────── Examen de refuerzo ───────────── */
+
+/** Puntaje mínimo aceptable en evaluaciones; debajo de esto se sugiere refuerzo. */
+export const REINFORCEMENT_THRESHOLD = 75;
+
+const weakestCategory = (ire: IreBreakdown): ErrorCategory => {
+  const cats = Object.keys(ire) as ErrorCategory[];
+  return cats.reduce((a, b) =>
+    ire[b].repeated / Math.max(1, ire[b].total) > ire[a].repeated / Math.max(1, ire[a].total) ? b : a,
+  );
+};
+
+/** Última evaluación con puntaje (examen diferido o de refuerzo). */
+export const lastScore = (tech: Technician) => tech.log[0]?.score ?? null;
+
+/** Ponderación baja: la última evaluación o el promedio de las 3 últimas queda bajo el umbral. */
+export const needsReinforcement = (tech: Technician) => {
+  const scores = tech.log.slice(0, 3).map((e) => e.score);
+  if (!scores.length) return false;
+  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+  return scores[0] < REINFORCEMENT_THRESHOLD || avg < REINFORCEMENT_THRESHOLD;
+};
+
+export const activateReinforcement = (tech: Technician): Technician => {
+  const category = weakestCategory(tech.ire);
+  const last = lastScore(tech);
+  return {
+    ...tech,
+    reinforcement: {
+      category,
+      activatedDay: tech.currentDay,
+      activatedAt: new Date().toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+      questions: tech.lexicalLevel === 'Operativo' ? 8 : tech.lexicalLevel === 'Técnico' ? 10 : 12,
+      reason: `Última evaluación ${last ?? '—'}/100 (umbral ${REINFORCEMENT_THRESHOLD}). Categoría con mayor redundancia: ${CATEGORY_LABEL[category]}.`,
+    },
+  };
+};
+
+export const cancelReinforcement = (tech: Technician): Technician => ({ ...tech, reinforcement: null });
+
+/**
+ * Aplica el examen de refuerzo (3 días después de activarlo): enfocado en la categoría
+ * más débil, con bonificación por práctica dirigida. Aprobar consolida S y baja la redundancia.
+ */
+export const applyReinforcementExam = (tech: Technician): Technician => {
+  const rf = tech.reinforcement;
+  if (!rf) return tech;
+  const day = tech.currentDay + 3;
+  const prev = lastReview(tech.reviews, tech.currentDay);
+  const R = retention(day - prev.day, prev.stability);
+  const noise = (seeded(day * 5 + tech.id.charCodeAt(2)) - 0.5) * 12;
+  const score = Math.max(30, Math.min(100, Math.round(58 + R * 35 + noise)));
+  const passed = score >= PASS_THRESHOLD;
+  const newS = Math.min(160, prev.stability * (passed ? 1.7 : 1.4));
+  const k = rf.category;
+  const ire: IreBreakdown = {
+    ...tech.ire,
+    [k]: passed
+      ? { total: tech.ire[k].total + 1, repeated: Math.max(0, tech.ire[k].repeated - 2) }
+      : { total: tech.ire[k].total + 1, repeated: tech.ire[k].repeated + 1 },
+  };
+  const entry: FeedbackEntry = {
+    id: `${tech.id}-rf-${day}`,
+    day,
+    date: fmtDate(day),
+    mode: 'Taller',
+    module: `Examen de refuerzo · ${CATEGORY_LABEL[k]} (${rf.questions} reactivos)`,
+    failure: passed
+      ? `Aprobó el refuerzo con ${score}/100. Se corrigió el patrón de error recurrente.`
+      : pick(FAILURES[k], day + 2),
+    recommendation: passed
+      ? `Refuerzo cerrado. S → ${newS.toFixed(0)} d. Reincorporar al ciclo normal de exámenes diferidos.`
+      : `${pick(RECOMMENDATIONS[k], day + 1)} Se sugiere repetir el refuerzo en 7 días.`,
+    score,
+    passed,
+    retentionAtExam: Math.round(R * 100),
+  };
+  return {
+    ...tech,
+    currentDay: day,
+    reviews: [...tech.reviews, { day, stability: newS, score }],
+    ire,
+    delegationScore: Math.max(0, Math.min(100, tech.delegationScore + (passed ? 4 : -2))),
+    log: [entry, ...tech.log],
+    reinforcement: null,
+  };
+};
+
 /**
  * Simula el paso de 15 días y un examen diferido:
  *  - la puntuación depende de la retención al momento del examen

@@ -12,12 +12,14 @@ import {
   YAxis,
 } from 'recharts';
 import { BrainCircuit, ChevronRight, GitBranch, Repeat2, ShieldCheck, Sparkles, TrendingDown, Zap } from 'lucide-react';
-import { CHART_ANIM, ChartTooltip, KpiCard, LegendItem, PageHeader, RiskBadge, SERIES, SpecialtyBadge } from '../components/ui';
+import { CHART_ANIM, ChartTooltip, KpiCard, LegendItem, PageHeader, RiskBadge, SpecialtyBadge } from '../components/ui';
 import { ERROR_RECURRENCE, OBSERVED_EXAMS, RETENTION_COHORTS, type ErrorPeriod } from '../data/mock';
 import { currentRetention, ireValue, PASS_THRESHOLD, retention, riskOf } from '../lib/retention';
 import type { Technician } from '../types';
 
-const COHORT_COLORS = [SERIES.s3, SERIES.s1, SERIES.s2];
+import { useChartColors } from '../lib/theme';
+
+const SHORT_CAT: Record<string, string> = { 'Protocolo LOTO': 'LOTO', 'Pares de apriete': 'Apriete', 'Selección SBOM': 'SBOM', 'Aislamiento AV': 'Aisl. AV', 'Diagnóstico CAN': 'Diag. CAN' };
 
 export default function ExecutiveView({
   technicians,
@@ -26,6 +28,8 @@ export default function ExecutiveView({
   technicians: Technician[];
   onOpenTechnician: (id: string) => void;
 }) {
+  const SERIES = useChartColors();
+  const COHORT_COLORS = [SERIES.s3, SERIES.s1, SERIES.s2];
   const [period, setPeriod] = useState<ErrorPeriod>('30d');
   const [showObserved, setShowObserved] = useState(true);
 
@@ -161,7 +165,7 @@ export default function ExecutiveView({
                   tickFormatter={(v) => `${v}%`}
                 />
                 <Tooltip
-                  cursor={{ stroke: '#3fb8c0', strokeWidth: 1, strokeDasharray: '3 3' }}
+                  cursor={{ stroke: SERIES.cursor, strokeWidth: 1, strokeDasharray: '3 3' }}
                   content={<ChartTooltip labelFormatter={(l) => `Día ${l} tras evaluación`} valueSuffix=" %" />}
                 />
                 <ReferenceLine y={PASS_THRESHOLD} stroke="#f59e0b" strokeDasharray="5 4" strokeOpacity={0.7} />
@@ -215,7 +219,7 @@ export default function ExecutiveView({
                 <button
                   key={p}
                   onClick={() => setPeriod(p)}
-                  className={`rounded-md px-2.5 py-1 transition-colors ${period === p ? 'bg-petrol-500 text-white' : 'text-slate-400 hover:text-white'}`}
+                  className={`whitespace-nowrap rounded-md px-2.5 py-1 transition-colors ${period === p ? 'bg-petrol-500 text-white' : 'text-slate-400 hover:text-fg'}`}
                 >
                   {p === '30d' ? '30 días' : 'Trimestre'}
                 </button>
@@ -240,7 +244,7 @@ export default function ExecutiveView({
                   axisLine={{ stroke: SERIES.grid }}
                   tickLine={false}
                   interval={0}
-                  tickFormatter={(v: string) => v.replace('Protocolo ', '').replace('Diagnóstico ', 'Diag. ')}
+                  tickFormatter={(v: string) => SHORT_CAT[v] ?? v}
                 />
                 <YAxis tick={{ fill: SERIES.axis, fontSize: 11 }} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: 'rgba(63,184,192,0.06)' }} content={<ChartTooltip valueSuffix=" fallos" />} />
@@ -273,7 +277,7 @@ export default function ExecutiveView({
               <li key={t.id}>
                 <button
                   onClick={() => onOpenTechnician(t.id)}
-                  className="group flex w-full items-center gap-4 rounded-lg px-2 py-3 text-left transition-colors hover:bg-base-850"
+                  className="group flex w-full items-center gap-2 sm:gap-4 rounded-lg px-2 py-3 text-left transition-colors hover:bg-base-850"
                 >
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-base-700 text-xs font-semibold text-slate-200">
                     {t.initials}
@@ -282,12 +286,12 @@ export default function ExecutiveView({
                     <span className="block truncate text-sm font-medium text-slate-100">{t.name}</span>
                     <span className="text-[11px] text-slate-500">{t.depot}</span>
                   </span>
-                  <SpecialtyBadge s={t.specialty} />
-                  <span className="w-20 text-right text-xs">
+                  <span className="hidden md:inline-flex"><SpecialtyBadge s={t.specialty} /></span>
+                  <span className="hidden w-20 text-right text-xs sm:block">
                     <span className="block font-mono text-slate-200">{(R * 100).toFixed(0)} %</span>
                     <span className="text-[10px] text-slate-500">R(t)</span>
                   </span>
-                  <span className="w-16 text-right text-xs">
+                  <span className="hidden w-16 text-right text-xs sm:block">
                     <span className="block font-mono text-slate-200">{(ire * 100).toFixed(0)} %</span>
                     <span className="text-[10px] text-slate-500">IRE</span>
                   </span>

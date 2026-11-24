@@ -2,8 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
-body { @apply bg-base-950 text-slate-200 antialiased; font-feature-settings: 'tnum' 1; }
+/* ── Tokens de tema (canales RGB para soportar opacidad /xx de Tailwind) ── */
+:root {
+  color-scheme: dark;
+  --fg: 255 255 255;
+  --base-950: 7 12 18;
+  --base-900: 11 18 26;
+  --base-850: 15 24 33;
+  --base-800: 17 26 36;
+  --base-700: 26 38 51;
+  --base-600: 36 52 68;
+  --base-500: 52 73 94;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --scroll-thumb: #243444;
+}
+html.light {
+  color-scheme: light;
+  --fg: 11 18 26;
+  --base-950: 240 243 246;
+  --base-900: 255 255 255;
+  --base-850: 246 248 250;
+  --base-800: 255 255 255;
+  --base-700: 223 229 236;
+  --base-600: 200 210 220;
+  --base-500: 150 165 180;
+  --slate-100: 15 23 42;
+  --slate-200: 30 41 59;
+  --slate-300: 51 65 85;
+  --slate-400: 71 85 105;
+  --slate-500: 100 116 139;
+  --slate-600: 148 163 184;
+  --scroll-thumb: #c8d2dc;
+}
+
+body { @apply bg-base-950 text-slate-200 antialiased transition-colors duration-300; font-feature-settings: 'tnum' 1; }
 
 @layer components {
   .card { @apply rounded-xl border border-base-700 bg-base-800/80 shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset]; }
@@ -11,23 +48,33 @@ body { @apply bg-base-950 text-slate-200 antialiased; font-feature-settings: 'tn
   .card-sub { @apply text-xs text-slate-400; }
   .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-all duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50; }
   .btn-primary { @apply btn bg-petrol-500 text-white hover:bg-petrol-400 shadow-lg shadow-petrol-900/40; }
-  .btn-amber { @apply btn bg-amber-500 text-base-950 hover:bg-amber-400 shadow-lg shadow-amber-900/30; }
-  .btn-ghost { @apply btn border border-base-600 bg-base-850 text-slate-300 hover:border-petrol-600 hover:text-white; }
+  .btn-amber { @apply btn bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-lg shadow-amber-900/30; }
+  .btn-ghost { @apply btn border border-base-600 bg-base-850 text-slate-300 hover:border-petrol-600 hover:text-fg; }
   .chip { @apply inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium; }
   .th { @apply px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400; }
   .td { @apply px-4 py-3 text-sm; }
+  .input { @apply w-full rounded-lg border border-base-600 bg-base-850 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-petrol-500 focus:outline-none; }
 }
+
+/* ── Modo claro: los acentos claros (pensados para fondo oscuro) se oscurecen para mantener contraste ── */
+html.light .card { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
+html.light :is(.text-petrol-200, .text-petrol-300, .text-petrol-400) { color: #0f5e65; }
+html.light :is(.text-amber-100\/90, .text-amber-200, .text-amber-300, .text-amber-400) { color: #b45309; }
+html.light :is(.text-emerald-200, .text-emerald-300, .text-emerald-400) { color: #047857; }
+html.light :is(.text-sky-300) { color: #0369a1; }
+html.light :is(.text-red-300, .text-red-400) { color: #b91c1c; }
+html.light :is(.text-violet-300) { color: #6d28d9; }
 
 /* scrollbars */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: #243444; border-radius: 8px; border: 2px solid #0b121a; }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-track { background: transparent; }
 
 .grid-bg {
-  background-image: linear-gradient(rgba(63,184,192,0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(63,184,192,0.05) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(63,184,192,0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(63,184,192,0.07) 1px, transparent 1px);
   background-size: 22px 22px;
 }
 .hazard-stripe {
-  background-image: repeating-linear-gradient(135deg, rgba(245,158,11,0.18) 0 8px, transparent 8px 16px);
+  background-image: repeating-linear-gradient(135deg, rgba(245,158,11,0.22) 0 8px, transparent 8px 16px);
 }

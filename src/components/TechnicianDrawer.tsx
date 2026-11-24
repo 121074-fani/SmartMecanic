@@ -10,8 +10,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Bot, CheckCircle2, Clock, FastForward, Loader2, Lock, MapPin, Truck, Wrench, X, XCircle } from 'lucide-react';
-import { CHART_ANIM, ChartTooltip, LegendItem, LevelBadge, RiskBadge, SERIES, SpecialtyBadge } from './ui';
+import { Bot, CheckCircle2, ClipboardCheck, Clock, FastForward, GraduationCap, Loader2, Lock, MapPin, Truck, Wrench, X, XCircle } from 'lucide-react';
+import { CHART_ANIM, ChartTooltip, LegendItem, LevelBadge, RiskBadge, SpecialtyBadge } from './ui';
 import {
   buildSawtooth,
   CATEGORY_LABEL,
@@ -23,19 +23,41 @@ import {
   PASS_THRESHOLD,
   riskOf,
   SIM_STEP_DAYS,
+  needsReinforcement,
+  REINFORCEMENT_THRESHOLD,
 } from '../lib/retention';
 import type { ErrorCategory, Technician } from '../types';
+import { useChartColors } from '../lib/theme';
 
 export default function TechnicianDrawer({
   tech,
   onClose,
   onSimulate,
+  onActivateExam,
+  onApplyExam,
+  onCancelExam,
 }: {
   tech: Technician;
   onClose: () => void;
   onSimulate: () => void;
+  onActivateExam: () => void;
+  onApplyExam: () => void;
+  onCancelExam: () => void;
 }) {
+  const SERIES = useChartColors();
   const [running, setRunning] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const overall = Math.round(tech.sections.reduce((a, s) => a + s.progress, 0) / tech.sections.length);
+
+  const applyExam = () => {
+    setApplying(true);
+    window.setTimeout(() => {
+      onApplyExam();
+      setApplying(false);
+      setFlashId(`${tech.id}-rf-${tech.currentDay + 3}`);
+      window.setTimeout(() => setFlashId(null), 2200);
+    }, 900);
+  };
   const [flashId, setFlashId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -66,11 +88,11 @@ export default function TechnicianDrawer({
       <div className="absolute inset-0 bg-base-950/60 backdrop-blur-[2px]" onClick={onClose} />
       <aside className="relative flex h-full w-full max-w-[640px] animate-slide-in flex-col border-l border-base-600 bg-base-900 shadow-2xl">
         {/* Encabezado */}
-        <div className="border-b border-base-700 px-6 py-5">
-          <div className="flex items-start gap-4">
+        <div className="border-b border-base-700 px-4 py-4 sm:px-6 sm:py-5">
+          <div className="flex items-start gap-3 sm:gap-4">
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-petrol-700 text-sm font-semibold text-white">{tech.initials}</span>
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-lg font-semibold text-white">{tech.name}</h2>
+              <h2 className="truncate text-lg font-semibold text-fg">{tech.name}</h2>
               <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
                 <MapPin size={12} /> {tech.depot} · {tech.id}
               </p>
@@ -81,15 +103,15 @@ export default function TechnicianDrawer({
                 {tech.hvCertified && <span className="chip border-emerald-500/30 bg-emerald-500/10 text-emerald-300">Certificado AV</span>}
               </div>
             </div>
-            <button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-base-800 hover:text-white" aria-label="Cerrar">
+            <button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-base-800 hover:text-fg" aria-label="Cerrar">
               <X size={18} />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+        <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           {/* Métricas */}
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               { l: 'R(t) actual', v: `${(R * 100).toFixed(0)}%`, warn: R < 0.5 },
               { l: 'Estabilidad S', v: `${S.toFixed(0)} d`, warn: false },
@@ -98,12 +120,50 @@ export default function TechnicianDrawer({
             ].map((m) => (
               <div key={m.l} className="rounded-lg border border-base-700 bg-base-850 p-3">
                 <p className="text-[10px] uppercase tracking-wider text-slate-500">{m.l}</p>
-                <p key={m.v} className={`mt-1 animate-fade-up font-mono text-lg font-semibold tabular-nums ${m.warn ? 'text-amber-300' : 'text-white'}`}>
+                <p key={m.v} className={`mt-1 animate-fade-up font-mono text-lg font-semibold tabular-nums ${m.warn ? 'text-amber-300' : 'text-fg'}`}>
                   {m.v}
                 </p>
               </div>
             ))}
           </div>
+
+          {/* Examen de refuerzo */}
+          {tech.reinforcement ? (
+            <section className="animate-fade-up rounded-xl border border-sky-500/40 bg-sky-500/5 p-4">
+              <div className="flex items-start gap-3">
+                <ClipboardCheck size={18} className="mt-0.5 shrink-0 text-sky-300" />
+                <div className="min-w-0 flex-1">
+                  <h3 className="card-title">Examen de refuerzo activo · solo para {tech.name.split(' ')[0]}</h3>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    {CATEGORY_LABEL[tech.reinforcement.category]} · {tech.reinforcement.questions} reactivos · activado {tech.reinforcement.activatedAt}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-300">{tech.reinforcement.reason}</p>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <button onClick={applyExam} disabled={applying} className="btn-primary flex-1">
+                  {applying ? <Loader2 size={15} className="animate-spin" /> : <ClipboardCheck size={15} />}
+                  {applying ? 'Calificando…' : 'Registrar resultado del refuerzo (simular)'}
+                </button>
+                <button onClick={onCancelExam} disabled={applying} className="btn-ghost">
+                  Cancelar examen
+                </button>
+              </div>
+            </section>
+          ) : (
+            needsReinforcement(tech) && (
+              <section className="flex flex-col gap-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 sm:flex-row sm:items-center">
+                <GraduationCap size={18} className="shrink-0 text-amber-400" />
+                <p className="flex-1 text-xs text-slate-300">
+                  Evaluaciones con ponderación baja (última: <b className="text-amber-300">{tech.log[0]?.score}/100</b>, umbral {REINFORCEMENT_THRESHOLD}). Se
+                  recomienda un examen de refuerzo dirigido.
+                </p>
+                <button onClick={onActivateExam} className="btn-amber whitespace-nowrap text-xs">
+                  <GraduationCap size={14} /> Examen de refuerzo
+                </button>
+              </section>
+            )
+          )}
 
           {/* Curva individual */}
           <section className="card p-4">
@@ -134,7 +194,7 @@ export default function TechnicianDrawer({
                   />
                   <YAxis domain={[0, 100]} tick={{ fill: SERIES.axis, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
                   <Tooltip
-                    cursor={{ stroke: '#3fb8c0', strokeDasharray: '3 3' }}
+                    cursor={{ stroke: SERIES.cursor, strokeDasharray: '3 3' }}
                     content={<ChartTooltip labelFormatter={(l) => `Día ${l} · ${dayToDate(Number(l))}`} valueSuffix=" %" />}
                   />
                   <ReferenceLine y={PASS_THRESHOLD} stroke="#f59e0b" strokeDasharray="5 4" strokeOpacity={0.6} />
@@ -169,7 +229,7 @@ export default function TechnicianDrawer({
                 <h3 className="card-title">Índice de Redundancia de Errores (IRE)</h3>
                 <p className="card-sub">Proporción de errores que se repiten por categoría</p>
               </div>
-              <span className="font-mono text-xl font-semibold text-white tabular-nums">{(ire * 100).toFixed(1)}%</span>
+              <span className="font-mono text-xl font-semibold text-fg tabular-nums">{(ire * 100).toFixed(1)}%</span>
             </div>
             <div className="mt-4 space-y-3">
               {(Object.keys(tech.ire) as ErrorCategory[]).map((k) => {
@@ -197,7 +257,15 @@ export default function TechnicianDrawer({
 
           {/* Secciones */}
           <section className="card p-4">
-            <h3 className="card-title">Ruta modular</h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="card-title">Ruta modular</h3>
+              <span className="text-xs text-slate-400">
+                Progreso total <b key={overall} className="ml-1 inline-block animate-fade-up font-mono text-base text-fg">{overall}%</b>
+              </span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-base-700">
+              <div className="h-full rounded-full bg-gradient-to-r from-petrol-500 to-emerald-500 transition-all duration-700" style={{ width: `${overall}%` }} />
+            </div>
             <div className="mt-3 space-y-2">
               {tech.sections.map((s) => (
                 <div key={s.id} className="flex items-center gap-3 rounded-lg border border-base-700 bg-base-850 px-3 py-2">
@@ -216,7 +284,12 @@ export default function TechnicianDrawer({
                       <div className={`h-full transition-all duration-700 ${s.status === 'aprobada' ? 'bg-emerald-500' : 'bg-petrol-400'}`} style={{ width: `${s.progress}%` }} />
                     </div>
                   </div>
-                  <span className="w-20 text-right text-[11px] capitalize text-slate-400">{s.status}</span>
+                  <span className="w-20 text-right">
+                    <span className={`block font-mono text-sm font-semibold tabular-nums ${s.status === 'aprobada' ? 'text-emerald-300' : s.status === 'en curso' ? 'text-petrol-300' : 'text-slate-500'}`}>
+                      {s.progress}%
+                    </span>
+                    <span className="block text-[10px] capitalize text-slate-500">{s.status}</span>
+                  </span>
                 </div>
               ))}
             </div>

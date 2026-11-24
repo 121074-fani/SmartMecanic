@@ -40,7 +40,7 @@ function Capture({ q }: { q: VisualQuery }) {
         className={`absolute rounded-sm border-2 ${q.hv ? 'border-amber-400' : 'border-petrol-400'}`}
         style={{ left: `${q.bbox.x}%`, top: `${q.bbox.y}%`, width: `${q.bbox.w}%`, height: `${q.bbox.h}%` }}
       >
-        <span className={`absolute -top-5 left-0 whitespace-nowrap rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold ${q.hv ? 'bg-amber-400 text-base-950' : 'bg-petrol-400 text-base-950'}`}>
+        <span className={`absolute -top-5 left-0 whitespace-nowrap rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold ${q.hv ? 'bg-amber-400 text-slate-950' : 'bg-petrol-400 text-slate-950'}`}>
           {(q.confidence * 100).toFixed(0)}% · {q.component.split(' (')[0]}
         </span>
         {['-left-1 -top-1', '-right-1 -top-1', '-left-1 -bottom-1', '-right-1 -bottom-1'].map((p) => (
@@ -52,7 +52,7 @@ function Capture({ q }: { q: VisualQuery }) {
         {q.device === 'Visor AR' ? <Glasses size={11} /> : <Smartphone size={11} />} {q.device}
       </div>
       {q.hv && (
-        <div className="absolute right-2 top-2 flex items-center gap-1 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-base-950">
+        <div className="absolute right-2 top-2 flex items-center gap-1 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-slate-950">
           <Zap size={10} /> ALTO VOLTAJE
         </div>
       )}
@@ -105,7 +105,7 @@ export default function AuditView({ onOpenTechnician }: { onOpenTechnician: (id:
             key={f.k}
             onClick={() => setFilter(f.k)}
             className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
-              filter === f.k ? 'border-petrol-500 bg-petrol-500/15 text-white' : 'border-base-600 text-slate-400 hover:border-base-500 hover:text-white'
+              filter === f.k ? 'border-petrol-500 bg-petrol-500/15 text-fg' : 'border-base-600 text-slate-400 hover:border-base-500 hover:text-fg'
             }`}
           >
             {f.l}
