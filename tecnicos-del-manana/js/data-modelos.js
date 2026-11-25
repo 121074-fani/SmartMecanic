@@ -19,20 +19,20 @@ const BUS_MODELS = [
   { id: '9800', name: 'Volvo 9800', tipo: 'Autocar de doble eje trasero', power: 'diesel', len: 14, style: 'coach', tagAxle: true, accent: '#7c3aed', skirt: '#1f2937',
     desc: 'Autocar de gran capacidad con eje de apoyo trasero, para rutas foráneas de larga distancia.' },
 ];
-const POWER_LABEL = { electrico: '🔋 Eléctrico', hibrido: '🔋⛽ Híbrido', diesel: '⛽ Diésel' };
+const POWER_LABEL = { electrico: '{{i:battery}} Eléctrico', hibrido: '{{i:battery}}{{i:fuel}} Híbrido', diesel: '{{i:fuel}} Diésel' };
 
 /* Grupos de función de la información de servicio (2–9). Solo 2 y 3 tienen simulaciones hoy. */
 const FUNCTION_GROUPS = [
-  { n: 2, name: 'Motor', icon: '🔧', available: true,
+  { n: 2, name: 'Motor', icon: '{{i:wrench}}', available: true,
     sub: { electrico: 'Motor eléctrico de tracción e inversor', hibrido: 'Motor diésel, motor eléctrico e inversor', diesel: 'Admisión, encendido, enfriamiento y postratamiento' } },
-  { n: 3, name: 'Sistema eléctrico', icon: '⚡', available: true,
+  { n: 3, name: 'Sistema eléctrico', icon: '{{i:bolt}}', available: true,
     sub: { electrico: 'Baterías de 24 V y de alto voltaje, cableado y redes', hibrido: 'Baterías, cableado de alto voltaje y redes', diesel: 'Baterías de 24 V, cableado, instrumentos y redes' } },
-  { n: 4, name: 'Transmisión', icon: '⚙️', sub: 'Embrague, caja de cambios, flechas y diferencial' },
-  { n: 5, name: 'Frenos', icon: '🛑', sub: 'Frenos de servicio, de estacionamiento y ABS' },
-  { n: 6, name: 'Dirección y suspensión delantera', icon: '🎯', sub: 'Volante, columna, caja de dirección y eje delantero' },
-  { n: 7, name: 'Bastidor, suspensión y ruedas', icon: '🛞', sub: 'Chasis, bolsas de aire, amortiguadores y rines' },
-  { n: 8, name: 'Carrocería e interior', icon: '💺', sub: 'Carrocería, asientos, puertas y climatización' },
-  { n: 9, name: 'Equipo adicional', icon: '🧰', sub: 'Accesorios y equipo especial' },
+  { n: 4, name: 'Transmisión', icon: '{{i:gear}}', sub: 'Embrague, caja de cambios, flechas y diferencial' },
+  { n: 5, name: 'Frenos', icon: '{{i:brake}}', sub: 'Frenos de servicio, de estacionamiento y ABS' },
+  { n: 6, name: 'Dirección y suspensión delantera', icon: '{{i:target}}', sub: 'Volante, columna, caja de dirección y eje delantero' },
+  { n: 7, name: 'Bastidor, suspensión y ruedas', icon: '{{i:wheel}}', sub: 'Chasis, bolsas de aire, amortiguadores y rines' },
+  { n: 8, name: 'Carrocería e interior', icon: '{{i:seat}}', sub: 'Carrocería, asientos, puertas y climatización' },
+  { n: 9, name: 'Equipo adicional', icon: '{{i:toolbox}}', sub: 'Accesorios y equipo especial' },
 ];
 
 /* Qué práctica pertenece a qué grupo.
@@ -53,8 +53,8 @@ const PRACTICE_CATALOG = [
   { type: 'fallas', id: 'can_comunicacion', group: 3, power: 'all' },
 ];
 const PRACTICE_TYPES = {
-  senala: { icon: '👆', name: 'Señala la pieza', order: 1 },
-  aprende: { icon: '⭐', name: 'Aprende haciendo', order: 2 },
-  taller: { icon: '🔧', name: 'Taller virtual', order: 3 },
-  fallas: { icon: '🛠️', name: 'Simulador de fallas', order: 4 },
+  senala: { icon: '{{i:pointer}}', name: 'Señala la pieza', order: 1 },
+  aprende: { icon: '{{i:star}}', name: 'Aprende haciendo', order: 2 },
+  taller: { icon: '{{i:wrench}}', name: 'Taller virtual', order: 3 },
+  fallas: { icon: '{{i:wrench}}', name: 'Simulador de fallas', order: 4 },
 };

@@ -450,15 +450,32 @@ const E3D = (() => {
     [-4.0, -2.05, -0.1, 1.85, 3.8].forEach(x => D('pillar', [x, 2.35, -1.255], [0.07, 1.22, 0.03], '#0b1220'));
     [-4.0, -2.05, -0.95, 3.0].forEach(x => D('pillar', [x, 2.35, 1.255], [0.07, 1.22, 0.03], '#0b1220'));
     // puertas de vidrio (lado derecho) con marco
-    [[4.75, 'door'], [0.6, 'door2']].forEach(([x, id]) => D(id, [x, 1.75, 1.266], [1.1, 2.4, 0.03], '#22344a', { gloss: 0.8 }));
+    [[4.75, 'door'], [0.6, 'door2']].forEach(([x, id]) => {
+      D(id, [x, 1.75, 1.266], [1.14, 2.44, 0.03], '#0b1220');
+      [-0.27, 0.27].forEach(dx => D(id, [x + dx, 1.8, 1.272], [0.5, 2.22, 0.03], '#2b4462', { gloss: 0.9 }));
+      D(id, [x, 1.25, 1.278], [1.0, 0.04, 0.03], '#0b1220');
+    });
     // frente: letrero de ruta, faros, parrilla y defensa
     D('sign', [front(3.05) + 0.03, 2.86, 0], [0.03, 0.18, 1.6], '#ffb347', { emit: true });
     [-0.88, 0.88].forEach(z => { D('light', [6.02, 0.98, z], [0.03, 0.15, 0.36], '#fff7d6', { emit: true }); D('drl', [6.02, 1.16, z * 1.02], [0.03, 0.04, 0.4], '#e0f2fe', { emit: true }); });
     D('logo', [6.02, 1.32, 0], [0.03, 0.08, 0.5], '#f5821f');
+    // parabrisas en dos partes (poste central inclinado) y limpiadores
+    M.push(hexa({ id: 'pillar', b: [5.985, 6.03, -0.04, 0.04, 1.74], t: [5.805, 5.85, -0.04, 0.04, 2.96], color: '#0b1220', kind: 'deco' }));
+    [-0.5, 0.5].forEach(z => D('wiper', [6.03, 1.8, z], [0.02, 0.03, 0.75], '#111827'));
+    // parrilla con rejillas y placa
+    D('grille', [6.02, 0.98, 0], [0.03, 0.26, 1.0], '#111827');
+    [0.9, 0.98, 1.06].forEach(y => D('slat', [6.025, y, 0], [0.03, 0.025, 0.94], '#374151'));
+    [-0.88, 0.88].forEach(z => D('lamp2', [6.025, 0.98, z + Math.sign(z) * 0.05], [0.03, 0.1, 0.12], '#fde68a', { emit: true }));
+    T('plate', [6.135, 0.66, 0], [0.01, 0.13, 0.42], '#f8fafc');
+    // luces de gálibo laterales (ámbar)
+    [-1.268, 1.268].forEach(z => [-5.2, -1.4, 2.0, 5.6].forEach(x => { if (z > 0 && ((x > 0 && x < 1.2) || (x > 4.1 && x < 5.4))) return; D('marker', [x, 0.66, z], [0.12, 0.06, 0.02], '#f59e0b', { emit: true }); }));
+    // escotillas del techo
+    (mode === 'ev' ? [3.6] : [1.8, 3.8]).forEach(x => T('hatch', [x, 3.32, 0], [0.75, 0.05, 0.62], '#cbd5e1', { gloss: 0.4 }));
     T('bumper', [6.07, 0.66, 0], [0.12, 0.28, 2.42], '#1f2937', { gloss: 0.3 });
     [-1, 1].forEach(sz => { T('mirrorarm', [6.15, 2.95, sz * 1.1], [0.36, 0.04, 0.04], '#111827'); T('mirror', [6.36, 2.62, sz * 1.18], [0.07, 0.5, 0.16], '#111827', { gloss: 0.5 }); });
     // parte trasera: calaveras y defensa
-    [-0.98, 0.98].forEach(z => D('tail', [-6.02, 1.22, z], [0.03, 0.55, 0.16], '#ef4444', { emit: true }));
+    [-0.98, 0.98].forEach(z => { D('tail', [-6.02, 1.2, z], [0.03, 0.45, 0.16], '#ef4444', { emit: true }); D('tail', [-6.02, 1.5, z], [0.03, 0.12, 0.16], '#f59e0b', { emit: true }); });
+    D('rearsign', [-6.02, 2.98, 0], [0.03, 0.16, 1.2], '#ffb347', { emit: true });
     T('bumper_r', [-6.07, 0.66, 0], [0.12, 0.28, 2.42], '#1f2937', { gloss: 0.3 });
     if (mode !== 'ev') { D('grille', [-6.02, 1.45, 0], [0.03, 0.3, 1.4], '#334155'); M.push(hexa({ id: 'ac_pod', b: [-2.9, -0.3, -0.78, 0.78, 3.28], t: [-2.75, -0.45, -0.66, 0.66, 3.55], color: '#e2e8f0', kind: 'trim', gloss: 0.3 })); }
     // llantas: neumático, rin brillante y tapón
@@ -467,6 +484,8 @@ const E3D = (() => {
       M.push(cylinder({ id: 'wheel', pos: [x, 0.5, z], radius: 0.5, length: 0.34, axis: 'z', segs: 24, color: '#1b1f27', kind: 'deco', soft: true }));
       M.push(cylinder({ id: 'hub', pos: [x, 0.5, z + sz * 0.18], radius: 0.31, length: 0.03, axis: 'z', segs: 20, color: '#d1d5db', kind: 'deco', gloss: 0.8, soft: true }));
       M.push(cylinder({ id: 'hub', pos: [x, 0.5, z + sz * 0.205], radius: 0.12, length: 0.03, axis: 'z', segs: 12, color: '#6b7280', kind: 'deco', gloss: 0.6 }));
+      for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; M.push(cylinder({ id: 'hub', pos: [x + Math.cos(a) * 0.19, 0.5 + Math.sin(a) * 0.19, z + sz * 0.21], radius: 0.022, length: 0.03, axis: 'z', segs: 6, color: '#94a3b8', kind: 'deco', gloss: 0.8 })); }
+      M.push(box({ id: 'flap', pos: [x - 0.72, 0.42, z * 1.12], size: [0.03, 0.3, 0.3], color: '#111827', kind: 'trim' }));
     });
     /* ---------- Componentes detallados (varias piezas comparten el mismo id: se seleccionan juntas) ---------- */
     const P = (id, pos, size, color, o = {}) => M.push(box({ id, pos, size, color, ...o }));

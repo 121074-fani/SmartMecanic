@@ -6,13 +6,13 @@
    ========================================================= */
 
 const COMPETENCIAS = [
-  { id: 'hv',     name: 'Seguridad de alto voltaje',          short: 'Seg. AV',      icon: '⚡' },
-  { id: 'ev',     name: 'Tren motriz eléctrico',              short: 'Eléctrico',    icon: '🔋' },
-  { id: 'diesel', name: 'Motores diésel',                     short: 'Diésel',       icon: '⛽' },
-  { id: 'elec',   name: 'Sistemas eléctricos y electrónicos', short: 'Electrónica',  icon: '🔌' },
-  { id: 'sw',     name: 'Software y actualización',           short: 'Software',     icon: '💾' },
-  { id: 'con',    name: 'Conectividad y redes',               short: 'Conectividad', icon: '📡' },
-  { id: 'diag',   name: 'Metodología de diagnóstico',         short: 'Diagnóstico',  icon: '🔍' },
+  { id: 'hv',     name: 'Seguridad de alto voltaje',          short: 'Seg. AV',      icon: '{{i:bolt}}' },
+  { id: 'ev',     name: 'Tren motriz eléctrico',              short: 'Eléctrico',    icon: '{{i:battery}}' },
+  { id: 'diesel', name: 'Motores diésel',                     short: 'Diésel',       icon: '{{i:fuel}}' },
+  { id: 'elec',   name: 'Sistemas eléctricos y electrónicos', short: 'Electrónica',  icon: '{{i:plug}}' },
+  { id: 'sw',     name: 'Software y actualización',           short: 'Software',     icon: '{{i:chip}}' },
+  { id: 'con',    name: 'Conectividad y redes',               short: 'Conectividad', icon: '{{i:signal}}' },
+  { id: 'diag',   name: 'Metodología de diagnóstico',         short: 'Diagnóstico',  icon: '{{i:search}}' },
 ];
 
 const ROLES = {
@@ -323,13 +323,13 @@ const COMPONENTS = {
 };
 
 const BADGES = {
-  primer_paso:   { name: 'Primer paso',          icon: '🚀', desc: 'Completaste el diagnóstico inicial' },
-  micro_5:       { name: 'Micro-aprendiz',       icon: '📚', desc: 'Completaste 5 micro-lecciones' },
-  guardian_av:   { name: 'Guardián AV',          icon: '🛡️', desc: 'Escenario eléctrico sin violaciones de seguridad' },
-  detective:     { name: 'Detective de fallas',  icon: '🔎', desc: 'Escenario con 100% al primer intento' },
-  memoria:       { name: 'Memoria de acero',     icon: '🧠', desc: 'Retención diferida ≥ 80%' },
-  constante:     { name: 'Constancia',           icon: '🔁', desc: '5 repasos espaciados completados' },
-  mejora:        { name: 'Gran salto',           icon: '📈', desc: 'Ganancia normalizada ≥ 0.5 en el post-test' },
+  primer_paso:   { name: 'Primer paso',          icon: '{{i:flag}}', desc: 'Completaste el diagnóstico inicial' },
+  micro_5:       { name: 'Micro-aprendiz',       icon: '{{i:book}}', desc: 'Completaste 5 micro-lecciones' },
+  guardian_av:   { name: 'Guardián AV',          icon: '{{i:shield}}', desc: 'Escenario eléctrico sin violaciones de seguridad' },
+  detective:     { name: 'Detective de fallas',  icon: '{{i:search}}', desc: 'Escenario con 100% al primer intento' },
+  memoria:       { name: 'Memoria de acero',     icon: '{{i:layers}}', desc: 'Retención diferida ≥ 80%' },
+  constante:     { name: 'Constancia',           icon: '{{i:repeat}}', desc: '5 repasos espaciados completados' },
+  mejora:        { name: 'Gran salto',           icon: '{{i:trendUp}}', desc: 'Ganancia normalizada ≥ 0.5 en el post-test' },
 };
 
 /* ---------- Equipo simulado para el tablero del supervisor ---------- */

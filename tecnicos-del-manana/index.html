@@ -19,13 +19,13 @@
       </a>
       <div id="userCard" class="usercard"></div>
       <nav id="nav">
-        <a href="#/inicio" data-r="inicio"><span>🏠</span>Inicio</a>
-        <a href="#/ruta" data-r="ruta"><span>🧭</span>Mi ruta</a>
-        <a href="#/practicar" data-r="practicar" class="star"><span>⭐</span>Practicar</a>
-        <a href="#/evaluaciones" data-r="evaluar"><span>📝</span>Evaluar <em id="navReviews" class="count" hidden>0</em></a>
-        <a href="#/asistente" data-r="asistente"><span>🤖</span>Asistente técnico</a>
-        <a href="#/tablero" data-r="tablero"><span>📊</span>Tablero</a>
-        <a href="#/escalabilidad" data-r="escalabilidad" class="minor"><span>🌐</span>Escalabilidad</a>
+        <a href="#/inicio" data-r="inicio"><span>{{i:home}}</span>Inicio</a>
+        <a href="#/ruta" data-r="ruta"><span>{{i:route}}</span>Mi ruta</a>
+        <a href="#/practicar" data-r="practicar" class="star"><span>{{i:star}}</span>Practicar</a>
+        <a href="#/evaluaciones" data-r="evaluar"><span>{{i:clipboard}}</span>Evaluar <em id="navReviews" class="count" hidden>0</em></a>
+        <a href="#/asistente" data-r="asistente"><span>{{i:chat}}</span>Asistente técnico</a>
+        <a href="#/tablero" data-r="tablero"><span>{{i:chart}}</span>Tablero</a>
+        <a href="#/escalabilidad" data-r="escalabilidad" class="minor"><span>{{i:globe}}</span>Escalabilidad</a>
       </nav>
       <div class="side-foot">
         <button class="btn ghost sm" id="demoNav">Cargar datos demo</button>
@@ -35,7 +35,7 @@
     </aside>
     <div id="main">
       <header id="topbar">
-        <button id="menuBtn" class="icon-btn" aria-label="Menú">☰</button>
+        <button id="menuBtn" class="icon-btn" aria-label="Menú">{{i:menu}}</button>
         <span class="topbrand">Técnicos del Mañana</span>
         <span id="netPill" class="pill net on">● En línea</span>
       </header>
@@ -43,16 +43,17 @@
     </div>
   </div>
   <nav id="tabbar" aria-label="Navegación principal">
-    <a href="#/inicio" data-r="inicio"><span>🏠</span>Inicio</a>
-    <a href="#/ruta" data-r="ruta"><span>🧭</span>Ruta</a>
-    <a href="#/practicar" data-r="practicar" class="mid"><span>⭐</span>Practicar</a>
-    <a href="#/evaluaciones" data-r="evaluar"><span>📝</span>Evaluar</a>
-    <button id="moreBtn" type="button"><span>☰</span>Más</button>
+    <a href="#/inicio" data-r="inicio"><span>{{i:home}}</span>Inicio</a>
+    <a href="#/ruta" data-r="ruta"><span>{{i:route}}</span>Ruta</a>
+    <a href="#/practicar" data-r="practicar" class="mid"><span>{{i:star}}</span>Practicar</a>
+    <a href="#/evaluaciones" data-r="evaluar"><span>{{i:clipboard}}</span>Evaluar</a>
+    <button id="moreBtn" type="button"><span>{{i:menu}}</span>Más</button>
   </nav>
   <div id="scrim"></div>
   <div id="toasts"></div>
   <div id="modal" class="modal" hidden></div>
 
+  <script src="js/icons.js"></script>
   <script src="js/data.js"></script>
   <script src="js/data-taller.js"></script>
   <script src="js/engine3d.js"></script>

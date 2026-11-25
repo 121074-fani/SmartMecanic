@@ -124,7 +124,7 @@ const PART_NAMES_MOTOR = {
          anim [{id, off, a, tint}], reading {text, status}, question {q, o, a, fb} */
 const SENALA = [
   {
-    id: 'bujias', title: 'Cambio de bujía', subtitle: 'Motor a gas natural de 6 cilindros', icon: '🔥', min: 6, comps: ['diesel', 'elec'], scene: 'motorGas',
+    id: 'bujias', title: 'Cambio de bujía', subtitle: 'Motor a gas natural de 6 cilindros', icon: '{{i:flame}}', min: 6, comps: ['diesel', 'elec'], scene: 'motorGas',
     names: PART_NAMES_MOTOR,
     intro: 'El autobús (motor a gas natural) tiene una falla de encendido en el cilindro 1. Vas a cambiar su bujía siguiendo el proceso completo. En cada paso, señala en el modelo la pieza o la herramienta correcta. Tienes 3 intentos por paso; si no la encuentras, el modelo te la muestra.',
     steps: [
@@ -162,7 +162,7 @@ const SENALA = [
     ],
   },
   {
-    id: 'bateria24', title: 'Reemplazo de batería', subtitle: 'Banco de baterías de 24 V', icon: '🔋', min: 4, comps: ['elec'], scene: 'baterias',
+    id: 'bateria24', title: 'Reemplazo de batería', subtitle: 'Banco de baterías de 24 V', icon: '{{i:battery}}', min: 4, comps: ['elec'], scene: 'baterias',
     names: { batA: 'Batería A (12 V)', batB: 'Batería B (12 V)', a_pos: 'Borne + de A', a_neg: 'Borne – de A', b_pos: 'Borne + de B', b_neg: 'Borne – de B', cable_pos: 'Cable positivo principal', jumper: 'Puente A– / B+', cable_neg: 'Cable negativo a chasis', bracket: 'Sujetador de baterías' },
     intro: 'Un multímetro ya indicó que la batería B está dañada (10.9 V). Señala cada pieza en el orden correcto para reemplazarla de forma segura.',
     steps: [
