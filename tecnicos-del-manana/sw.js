@@ -1,11 +1,11 @@
 /* Service worker: la app funciona sin conexión.
    Archivos de la app: red primero (siempre la versión vigente) y caché como respaldo offline.
    MediaPipe: caché primero (archivos versionados que no cambian). */
-const CACHE = 'tdm-v26';
+const CACHE = 'tdm-v27';
 // MediaPipe (WASM + modelo, ~22 MB): caché propia que sobrevive a los cambios de versión de la app
 const MP_CACHE = 'tdm-mediapipe-1.2.2';
 const isMediaPipe = url => url.startsWith('https://cdn.jsdelivr.net/npm/@mediapipe/') || url.startsWith('https://storage.googleapis.com/mediapipe-models/');
-const ASSETS = ['./', './index.html', './css/styles.css', './js/icons.js', './js/data.js', './js/data-taller.js', './js/data-sims.js', './js/data-senala.js', './js/data-equipo.js', './js/data-modelos.js', './js/engine3d.js', './js/charts.js', './js/hand-tracking.js', './js/app.js', './manifest.json', './icons/icon.svg'];
+const ASSETS = ['./', './index.html', './css/styles.css', './js/bridge.js', './js/icons.js', './js/data.js', './js/data-taller.js', './js/data-sims.js', './js/data-senala.js', './js/data-equipo.js', './js/data-modelos.js', './js/engine3d.js', './js/charts.js', './js/hand-tracking.js', './js/app.js', './manifest.json', './icons/icon.svg'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== MP_CACHE).map(k => caches.delete(k)))));

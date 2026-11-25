@@ -139,12 +139,13 @@ export function issueSession(s: Pick<Session, 'email' | 'name' | 'role'>): Sessi
   return {
     email: s.email,
     name: user?.name ?? s.name,
-    role: user?.role ?? s.role,
-    appRole: appRoleOf(user?.role ?? s.role),
+    // el rol lo decide la opción elegida en el login (Técnico / Supervisor)
+    role: s.role,
+    appRole: appRoleOf(s.role),
     token: uuid(),
     issuedAt: now,
     expiresAt: now + SESSION_TTL_MS,
-    tecnico: user?.tecnico,
+    tecnico: s.role === 'Técnico' ? user?.tecnico : undefined,
   };
 }
 
@@ -159,12 +160,11 @@ export function startSession(base: Pick<Session, 'email' | 'name' | 'role'>): Se
   return s;
 }
 
-/** Sesión del Dashboard. Solo se restaura si el correo sigue autorizado y no expiró. */
+/** Sesión del Dashboard (login abierto: basta con que exista y no haya expirado). */
 export function loadSession(): Session | null {
   const s = readJSON<Session | null>(HUB_KEYS.session, null);
   if (!s || isExpired(s) || s.role === 'Técnico') return null;
-  const u = loadUsers().find((x) => x.email === s.email);
-  return u ? { ...s, name: u.name, role: u.role } : null;
+  return s;
 }
 
 export function saveSession(s: Session | null) {
@@ -180,8 +180,7 @@ export function saveSession(s: Session | null) {
 
 export function loadTecnicoSession(): Session | null {
   const s = readJSON<Session | null>(HUB_KEYS.sessionTecnico, null);
-  if (!s || isExpired(s)) return null;
-  return loadUsers().some((u) => u.email === s.email) ? s : null;
+  return s && !isExpired(s) ? s : null;
 }
 
 /** URL de la app del técnico (configurable para builds donde vive en otra ruta). */

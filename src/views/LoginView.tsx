@@ -1,51 +1,45 @@
 import { useState, type FormEvent } from 'react';
-import { AlertTriangle, ArrowRight, Bus, CheckCircle2, Eye, EyeOff, KeyRound, Lock, Mail, Moon, ShieldCheck, Sun, Zap } from 'lucide-react';
-import {
-  DEMO_PASSWORD,
-  isValidEmail,
-  loadRequests,
-  loadUsers,
-  normalize,
-  saveRequests,
-  today,
-  type Session,
-} from '../lib/auth';
+import { AlertTriangle, ArrowRight, Bus, CheckCircle2, Eye, EyeOff, KeyRound, LayoutDashboard, Moon, Sun, User, Wrench, Zap } from 'lucide-react';
+import { loadUsers, normalize, type Session } from '../lib/auth';
 import { useTheme } from '../lib/theme';
 
-type Notice = { kind: 'error' | 'unauthorized' | 'requested'; text: string } | null;
+type Notice = { kind: 'error'; text: string } | null;
 
-export default function LoginView({ onLogin }: { onLogin: (s: Session) => void }) {
+/** Los dos menús a los que da acceso el login único. */
+export type Portal = 'tecnico' | 'supervision';
+
+const PORTALS: Record<Portal, { label: string; hint: string; icon: typeof Wrench }> = {
+  tecnico: { label: 'Técnico', hint: 'Entrenamiento, práctica en 3D y evaluaciones.', icon: Wrench },
+  supervision: { label: 'Supervisor', hint: 'Portal gerencial: equipo, retención e ingesta de manuales.', icon: LayoutDashboard },
+};
+
+/** "ana.lopez@x.mx" → "Ana Lopez" */
+const nameFrom = (id: string) =>
+  id
+    .split('@')[0]
+    .split(/[._\-\s]+/)
+    .filter(Boolean)
+    .map((p) => p[0].toUpperCase() + p.slice(1))
+    .join(' ') || 'Usuario';
+
+export default function LoginView({ onLogin, defaultPortal = 'supervision' }: { onLogin: (s: Session) => void; defaultPortal?: Portal }) {
   const { theme, toggle } = useTheme();
+  const [portal, setPortal] = useState<Portal>(defaultPortal);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [loading, setLoading] = useState(false);
 
+  /** Demo abierta: cualquier usuario y contraseña; la opción elegida decide a qué pantalla se entra. */
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const em = normalize(email);
-    if (!isValidEmail(em)) return setNotice({ kind: 'error', text: 'Escribe un correo electrónico válido.' });
-    const user = loadUsers().find((u) => u.email === em);
-    if (!user) {
-      const pending = loadRequests().some((r) => r.email === em);
-      return setNotice({
-        kind: pending ? 'requested' : 'unauthorized',
-        text: pending
-          ? 'Tu solicitud de acceso ya está pendiente de autorización por un supervisor.'
-          : 'Este correo no cuenta con autorización de supervisor para acceder al portal.',
-      });
-    }
-    if (password !== DEMO_PASSWORD) return setNotice({ kind: 'error', text: 'Contraseña incorrecta.' });
+    const id = normalize(email);
+    if (!id || !password) return setNotice({ kind: 'error', text: 'Escribe tu usuario y tu contraseña.' });
+    const known = loadUsers().find((u) => u.email === id);
+    const role: Session['role'] = portal === 'tecnico' ? 'Técnico' : known && known.role !== 'Técnico' ? known.role : 'Supervisor';
     setLoading(true);
-    window.setTimeout(() => onLogin({ email: user.email, name: user.name, role: user.role }), 500);
-  };
-
-  const requestAccess = () => {
-    const em = normalize(email);
-    const reqs = loadRequests();
-    if (!reqs.some((r) => r.email === em)) saveRequests([{ email: em, date: today() }, ...reqs]);
-    setNotice({ kind: 'requested', text: 'Solicitud enviada. Un supervisor debe autorizar tu correo antes de que puedas entrar.' });
+    window.setTimeout(() => onLogin({ email: id, name: known?.name ?? nameFrom(id), role }), 400);
   };
 
   return (
@@ -91,22 +85,47 @@ export default function LoginView({ onLogin }: { onLogin: (s: Session) => void }
             <p className="font-semibold text-fg">Fleet Academy</p>
           </div>
           <h2 className="text-2xl font-semibold tracking-tight text-fg">Iniciar sesión</h2>
-          <p className="mt-1 text-sm text-slate-400">Acceso restringido a correos autorizados por un supervisor.</p>
+          <p className="mt-1 text-sm text-slate-400">Elige a qué menú quieres entrar.</p>
 
-          <form onSubmit={submit} className="mt-6 space-y-4">
+          <div role="tablist" aria-label="Tipo de acceso" className="mt-6 grid grid-cols-2 gap-1 rounded-xl border border-base-600 bg-base-900 p-1">
+            {(Object.keys(PORTALS) as Portal[]).map((p) => {
+              const { label, icon: Icon } = PORTALS[p];
+              const active = portal === p;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => {
+                    setPortal(p);
+                    setNotice(null);
+                  }}
+                  className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    active ? 'bg-petrol-600 text-white shadow' : 'text-slate-400 hover:bg-base-800 hover:text-slate-200'
+                  }`}
+                >
+                  <Icon size={15} /> {label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">{PORTALS[portal].hint}</p>
+
+          <form onSubmit={submit} className="mt-5 space-y-4">
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-slate-300">Correo corporativo</span>
+              <span className="mb-1.5 block text-xs font-medium text-slate-300">Usuario o correo</span>
               <div className="relative">
-                <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
-                  type="email"
+                  type="text"
                   autoComplete="username"
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
                     setNotice(null);
                   }}
-                  placeholder="nombre@fleetacademy.mx"
+                  placeholder="tu usuario"
                   className="input pl-9"
                 />
               </div>
@@ -133,36 +152,17 @@ export default function LoginView({ onLogin }: { onLogin: (s: Session) => void }
             </label>
 
             {notice && (
-              <div
-                className={`animate-fade-up rounded-lg border p-3 text-xs ${
-                  notice.kind === 'requested' ? 'border-sky-500/30 bg-sky-500/10 text-sky-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-                }`}
-              >
-                <p className="flex items-start gap-2">
-                  {notice.kind === 'requested' ? <ShieldCheck size={14} className="mt-0.5 shrink-0" /> : notice.kind === 'unauthorized' ? <Lock size={14} className="mt-0.5 shrink-0" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}
-                  {notice.text}
-                </p>
-                {notice.kind === 'unauthorized' && (
-                  <button type="button" onClick={requestAccess} className="mt-2 font-semibold underline underline-offset-2 hover:no-underline">
-                    Solicitar autorización al supervisor
-                  </button>
-                )}
-              </div>
+              <p className="flex animate-fade-up items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" /> {notice.text}
+              </p>
             )}
 
             <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
-              {loading ? 'Verificando…' : 'Entrar'} <ArrowRight size={16} />
+              {loading ? 'Entrando…' : `Entrar como ${PORTALS[portal].label.toLowerCase()}`} <ArrowRight size={16} />
             </button>
           </form>
 
-          <div className="mt-8 rounded-lg border border-dashed border-base-600 p-3 text-[11px] text-slate-400">
-            <p className="font-semibold text-slate-300">Credenciales de la demo</p>
-            <p className="mt-1 font-mono">supervisor@fleetacademy.mx</p>
-            <p className="font-mono">gerencia@fleetacademy.mx</p>
-            <p className="mt-1">
-              Contraseña: <span className="font-mono text-slate-200">{DEMO_PASSWORD}</span>
-            </p>
-          </div>
+          <p className="mt-6 text-center text-[11px] text-slate-500">Demo: funciona con cualquier usuario y contraseña.</p>
         </div>
       </div>
     </div>

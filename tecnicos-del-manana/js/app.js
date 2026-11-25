@@ -24,7 +24,20 @@ function levelLabel(m) {
 }
 
 /* ---------------- Estado (persistente, offline) ---------------- */
-const STORE_KEY = 'tdm_state_v1';
+/* Sesión del login unificado (js/bridge.js). Sin ella la app funciona en modo local con registro por nombre. */
+const AUTH = window.FA_AUTH?.session || null;
+// con sesión, cada técnico guarda su propio progreso (varios técnicos pueden compartir dispositivo)
+const STORE_KEY = AUTH ? 'tdm_state_v1:' + AUTH.email : 'tdm_state_v1';
+function sessionUser() {
+  const role = AUTH.tecnico?.rolApp;
+  return { name: AUTH.name, email: AUTH.email, role: ROLES[role] ? role : 'nuevo', since: Date.now() };
+}
+/** Con sesión, el usuario siempre es el de la cuenta autenticada (nunca el formulario de registro). */
+function applySession() {
+  if (!AUTH) return;
+  const u = sessionUser();
+  S.user = S.user ? { ...S.user, name: u.name, email: u.email, role: u.role } : u;
+}
 function defaultState() {
   const z = v => Object.fromEntries(COMP_IDS.map(c => [c, v]));
   return {
@@ -40,6 +53,7 @@ function load() {
   return defaultState();
 }
 let S = load();
+applySession();
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* sin persistencia */ } renderChrome(); }
 function log(type, text) { S.log.push({ day: S.day, ts: Date.now(), type, text }); }
 
@@ -1389,6 +1403,7 @@ const scaleCard = (t, items) => `<div class="card"><h3>${t}</h3><ul class="dots-
 function loadDemo() {
   S = defaultState();
   S.user = { name: 'Técnico Demo', role: 'ev', since: Date.now() };
+  applySession();
   const pre = { hv: 40, ev: 40, diesel: 70, elec: 70, sw: 40, con: 10, diag: 70 };
   const post = { hv: 100, ev: 100, diesel: 50, elec: 100, sw: 50, con: 100, diag: 100 };
   const del = { hv: 100, ev: 50, diesel: 50, elec: 100, sw: 50, con: 50, diag: 100 };
@@ -1441,9 +1456,11 @@ function init() {
   let armed = false;
   $('#resetBtn').onclick = e => {
     if (!armed) { armed = true; e.target.textContent = '¿Seguro? clic otra vez'; setTimeout(() => { armed = false; e.target.textContent = 'Reiniciar datos'; }, 3000); return; }
-    S = defaultState(); chat = []; save(); go('inicio');
+    S = defaultState(); applySession(); chat = []; save(); go(AUTH ? 'diagnostico' : 'inicio');
   };
   $('#demoNav').onclick = () => { loadDemo(); go('tablero'); };
+  const lo = $('#logoutBtn');
+  if (AUTH && lo) { lo.hidden = false; lo.onclick = () => window.FA_AUTH.logout(); }
   window.addEventListener('online', setOnline);
   window.addEventListener('offline', setOnline);
   setOnline();
