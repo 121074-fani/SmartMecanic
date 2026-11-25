@@ -1,0 +1,951 @@
+{
+  "schema": "fa.module/v1",
+  "id": "MOD-AV-215@1",
+  "codigo": "MOD-AV-215",
+  "nombre": "Inversor de tracción y control de motor · Bus eléctrico 12 m",
+  "categoria": "ev",
+  "vehiculo": "Autobús urbano eléctrico 12 m · 650 V CC",
+  "fechaPublicacion": "2026-11-25T01:10:22.597Z",
+  "version": 1,
+  "destinos": [
+    "App Móvil",
+    "Visor AR"
+  ],
+  "publicadoPor": "supervisor@fleetacademy.mx",
+  "fuente": {
+    "archivo": "Cursos 2023.pdf",
+    "paginas": 25,
+    "metodo": "plantilla",
+    "hash": "18cfbfcecb77c1c7f2741e8e9d013fa1f4159b34e7123111223ce1e8606d4de4",
+    "motor": "local"
+  },
+  "reglasSeguridad": [
+    {
+      "id": "R1",
+      "orden": 1,
+      "texto": "Antes de abrir la carcasa del inversor: retirar MSD, aplicar LOTO y esperar ≥ 5 min para descarga del enlace CC.",
+      "tipo": "descarga",
+      "norma": "NFPA 70E §120.5(7)",
+      "obligatoria": true,
+      "pagina": 12
+    },
+    {
+      "id": "R2",
+      "orden": 2,
+      "texto": "Verificar ausencia de tensión en 3 puntos (HV+ / HV− / chasis) con multímetro CAT III 1000 V; valor aceptable < 60 V CC.",
+      "tipo": "verificacion-0v",
+      "norma": "NFPA 70E §120.5(7) · verificación 0 V",
+      "obligatoria": true,
+      "pagina": 14
+    },
+    {
+      "id": "R6",
+      "orden": 3,
+      "texto": "En rescate en ruta: no intentar reinicio del inversor si existe olor a quemado o fuga de refrigerante; solicitar grúa con aislamiento.",
+      "tipo": "rescate",
+      "norma": "Procedimiento OEM de rescate",
+      "obligatoria": true,
+      "pagina": 121
+    },
+    {
+      "id": "R3",
+      "orden": 4,
+      "texto": "Resistencia de aislamiento mínima: 500 Ω/V sobre tensión nominal (≥ 325 kΩ a 650 V), medida con megóhmetro a 1000 V.",
+      "tipo": "general",
+      "norma": "Manual del fabricante",
+      "obligatoria": false,
+      "pagina": 37
+    },
+    {
+      "id": "R5",
+      "orden": 5,
+      "texto": "DTC P0A0F / U0293: inspeccionar continuidad del lazo HVIL antes de reemplazar el inversor.",
+      "tipo": "general",
+      "norma": "Manual del fabricante",
+      "obligatoria": false,
+      "pagina": 92
+    }
+  ],
+  "paresApriete": [
+    {
+      "componente": "Terminales HV de entrada (DC+ / DC−)",
+      "valorNm": 9,
+      "toleranciaNm": 1,
+      "especificacion": "9 N·m ± 1",
+      "secuencia": "DC− → DC+",
+      "herramienta": "Llave dinamométrica aislada 1000 V",
+      "pagina": 44,
+      "parteId": "cable_av"
+    },
+    {
+      "componente": "Barras de fase U / V / W al motor",
+      "valorNm": 22,
+      "toleranciaNm": 2,
+      "especificacion": "22 N·m ± 2",
+      "secuencia": "U → V → W, repaso cruzado",
+      "herramienta": "Llave dinamométrica aislada",
+      "pagina": 46,
+      "parteId": "inversor"
+    },
+    {
+      "componente": "Tornillos módulo IGBT a disipador",
+      "valorNm": 5,
+      "toleranciaNm": 0.5,
+      "especificacion": "5 N·m ± 0.5",
+      "secuencia": "Patrón cruzado, 2 pasadas (50 % / 100 %)",
+      "herramienta": "Destornillador dinamométrico",
+      "pagina": 59,
+      "parteId": "inversor"
+    },
+    {
+      "componente": "Carcasa del inversor (M8)",
+      "valorNm": 24,
+      "toleranciaNm": 2,
+      "especificacion": "24 N·m ± 2",
+      "secuencia": "Estrella, desde el centro",
+      "herramienta": "Llave dinamométrica ½\"",
+      "pagina": 63,
+      "parteId": "inversor"
+    },
+    {
+      "componente": "Racores de refrigerante",
+      "valorNm": 30,
+      "toleranciaNm": 3,
+      "especificacion": "30 N·m ± 3",
+      "secuencia": "Entrada → salida",
+      "herramienta": "Llave de pata de gallo",
+      "pagina": 71,
+      "parteId": "enfriamiento"
+    }
+  ],
+  "piezasSBOM": [
+    {
+      "codigo": "INV-650-IGBT-03",
+      "nombre": "Módulo de potencia IGBT 1200 V / 600 A",
+      "grupoFuncion": "Electrónica de potencia AV",
+      "criticidad": "Crítica",
+      "taller": true,
+      "kitRescate": false,
+      "cantidad": 1,
+      "parteId": "inversor"
+    },
+    {
+      "codigo": "HV-MSD-400A",
+      "nombre": "Desconectador manual de servicio (MSD) 400 A",
+      "grupoFuncion": "Protección y conexión AV",
+      "criticidad": "Crítica",
+      "taller": true,
+      "kitRescate": true,
+      "cantidad": 1,
+      "parteId": "msd"
+    },
+    {
+      "codigo": "HV-CON-3P-IL",
+      "nombre": "Conector HV 3 pines con interlock HVIL",
+      "grupoFuncion": "Protección y conexión AV",
+      "criticidad": "Alta",
+      "taller": true,
+      "kitRescate": true,
+      "cantidad": 2,
+      "parteId": "cable_av"
+    },
+    {
+      "codigo": "TH-PASTE-01",
+      "nombre": "Pasta térmica conductiva 3.5 W/m·K (50 g)",
+      "grupoFuncion": "Gestión térmica",
+      "criticidad": "Media",
+      "taller": true,
+      "kitRescate": false,
+      "cantidad": 1,
+      "parteId": "inversor"
+    },
+    {
+      "codigo": "CL-GLYCOL-50",
+      "nombre": "Refrigerante glicol 50/50 baja conductividad (5 L)",
+      "grupoFuncion": "Gestión térmica",
+      "criticidad": "Media",
+      "taller": true,
+      "kitRescate": true,
+      "cantidad": 1,
+      "parteId": "enfriamiento"
+    },
+    {
+      "codigo": "FUS-HV-400",
+      "nombre": "Fusible HV 400 A / 1000 V CC",
+      "grupoFuncion": "Protección y conexión AV",
+      "criticidad": "Alta",
+      "taller": true,
+      "kitRescate": true,
+      "cantidad": 2,
+      "parteId": "msd"
+    },
+    {
+      "codigo": "PPE-GLV-C0",
+      "nombre": "Guantes dieléctricos clase 0 (1000 V)",
+      "grupoFuncion": "EPP / seguridad",
+      "criticidad": "Crítica",
+      "taller": true,
+      "kitRescate": true,
+      "cantidad": 1,
+      "parteId": "inversor"
+    }
+  ],
+  "entrenamiento": {
+    "lecciones": [
+      {
+        "id": "mod-av-215-seg",
+        "comp": "hv",
+        "level": 1,
+        "min": 5,
+        "title": "Secuencia obligatoria de seguridad · MOD-AV-215",
+        "ref": "MOD-AV-215 §Seguridad",
+        "cards": [
+          {
+            "t": "1. Descarga / despresurización",
+            "b": "Antes de abrir la carcasa del inversor: retirar MSD, aplicar LOTO y esperar ≥ 5 min para descarga del enlace CC. — NFPA 70E §120.5(7)"
+          },
+          {
+            "t": "2. Verificación de ausencia de tensión",
+            "b": "Verificar ausencia de tensión en 3 puntos (HV+ / HV− / chasis) con multímetro CAT III 1000 V; valor aceptable < 60 V CC. — NFPA 70E §120.5(7) · verificación 0 V"
+          },
+          {
+            "t": "3. Rescate en ruta",
+            "b": "En rescate en ruta: no intentar reinicio del inversor si existe olor a quemado o fuga de refrigerante; solicitar grúa con aislamiento. — Procedimiento OEM de rescate"
+          }
+        ],
+        "key": "Descarga / despresurización → Verificación de ausencia de tensión → Rescate en ruta",
+        "check": {
+          "q": "Según MOD-AV-215, ¿qué va PRIMERO en la secuencia de seguridad?",
+          "o": [
+            "Antes de abrir la carcasa del inversor: retirar MSD, aplicar LOTO y esperar ≥ 5 min para descarga del enlace…",
+            "En rescate en ruta: no intentar reinicio del inversor si existe olor a quemado o fuga de refrigerante; solici…",
+            "Comenzar por la pieza dañada y asegurar después",
+            "Depende del criterio de cada técnico"
+          ],
+          "a": 0
+        },
+        "moduloId": "MOD-AV-215@1"
+      },
+      {
+        "id": "mod-av-215-proc",
+        "comp": "diag",
+        "level": 2,
+        "min": 4,
+        "title": "Reglas de procedimiento y diagnóstico · MOD-AV-215",
+        "ref": "MOD-AV-215 §Procedimiento",
+        "cards": [
+          {
+            "t": "Regla 1 · pág. 37",
+            "b": "Resistencia de aislamiento mínima: 500 Ω/V sobre tensión nominal (≥ 325 kΩ a 650 V), medida con megóhmetro a 1000 V."
+          },
+          {
+            "t": "Regla 2 · pág. 92",
+            "b": "DTC P0A0F / U0293: inspeccionar continuidad del lazo HVIL antes de reemplazar el inversor."
+          }
+        ],
+        "key": "Evidencia primero: confirma con medición o DTC antes de sustituir piezas.",
+        "check": {
+          "q": "¿Cuál de estas reglas pertenece a MOD-AV-215?",
+          "o": [
+            "Resistencia de aislamiento mínima: 500 Ω/V sobre tensión nominal (≥ 325 kΩ a 650 V), medida con megóhmetro a 1000 V.",
+            "Omitir el paso si la unidad urge salir a ruta",
+            "Hacerlo solo si el supervisor lo solicita",
+            "Reutilizar las piezas desmontadas para ahorrar tiempo"
+          ],
+          "a": 0
+        },
+        "moduloId": "MOD-AV-215@1"
+      },
+      {
+        "id": "mod-av-215-torque",
+        "comp": "ev",
+        "level": 2,
+        "min": 6,
+        "title": "Pares de apriete · Inversor de tracción y control de motor · Bus eléctrico 12 m",
+        "ref": "MOD-AV-215 §Pares",
+        "cards": [
+          {
+            "t": "Terminales HV de entrada (DC+ / DC−)",
+            "b": "9 N·m ± 1 · secuencia: DC− → DC+ · Llave dinamométrica aislada 1000 V (pág. 44)"
+          },
+          {
+            "t": "Barras de fase U / V / W al motor",
+            "b": "22 N·m ± 2 · secuencia: U → V → W, repaso cruzado · Llave dinamométrica aislada (pág. 46)"
+          },
+          {
+            "t": "Tornillos módulo IGBT a disipador",
+            "b": "5 N·m ± 0.5 · secuencia: Patrón cruzado, 2 pasadas (50 % / 100 %) · Destornillador dinamométrico (pág. 59)"
+          },
+          {
+            "t": "Carcasa del inversor (M8)",
+            "b": "24 N·m ± 2 · secuencia: Estrella, desde el centro · Llave dinamométrica ½\" (pág. 63)"
+          },
+          {
+            "t": "Racores de refrigerante",
+            "b": "30 N·m ± 3 · secuencia: Entrada → salida · Llave de pata de gallo (pág. 71)"
+          }
+        ],
+        "key": "Llave calibrada, valor del manual y secuencia indicada: nunca \"a sentimiento\".",
+        "check": {
+          "q": "¿Qué par especifica MOD-AV-215 para «Terminales HV de entrada (DC+ / DC−)»?",
+          "o": [
+            "9 N·m ± 1",
+            "4.5 N·m",
+            "14.4 N·m",
+            "22.5 N·m"
+          ],
+          "a": 0
+        },
+        "moduloId": "MOD-AV-215@1"
+      },
+      {
+        "id": "mod-av-215-sbom",
+        "comp": "ev",
+        "level": 1,
+        "min": 5,
+        "title": "SBOM y kit de rescate · MOD-AV-215",
+        "ref": "MOD-AV-215 §SBOM",
+        "cards": [
+          {
+            "t": "Electrónica de potencia AV",
+            "b": "INV-650-IGBT-03 · Módulo de potencia IGBT 1200 V / 600 A"
+          },
+          {
+            "t": "Protección y conexión AV",
+            "b": "HV-MSD-400A · Desconectador manual de servicio (MSD) 400 A (kit de rescate) | HV-CON-3P-IL · Conector HV 3 pines con interlock HVIL (kit de rescate) | FUS-HV-400 · Fusible HV 400 A / 1000 V CC (kit de rescate)"
+          },
+          {
+            "t": "Gestión térmica",
+            "b": "TH-PASTE-01 · Pasta térmica conductiva 3.5 W/m·K (50 g) | CL-GLYCOL-50 · Refrigerante glicol 50/50 baja conductividad (5 L) (kit de rescate)"
+          },
+          {
+            "t": "EPP / seguridad",
+            "b": "PPE-GLV-C0 · Guantes dieléctricos clase 0 (1000 V) (kit de rescate)"
+          }
+        ],
+        "key": "Valida código y revisión contra el SBOM del módulo antes de cerrar la orden.",
+        "check": {
+          "q": "¿Qué código corresponde a «Módulo de potencia IGBT 1200 V / 600 A»?",
+          "o": [
+            "INV-650-IGBT-03",
+            "HV-MSD-400A",
+            "HV-CON-3P-IL",
+            "TH-PASTE-01"
+          ],
+          "a": 0
+        },
+        "moduloId": "MOD-AV-215@1"
+      }
+    ],
+    "preguntas": [
+      {
+        "id": "mod-av-215-q1",
+        "c": "hv",
+        "lvl": 2,
+        "q": "Según el manual MOD-AV-215, ¿qué es obligatorio en «Descarga / despresurización»?",
+        "o": [
+          "Antes de abrir la carcasa del inversor: retirar MSD, aplicar LOTO y esperar ≥ 5 min para descarga del enlace CC.",
+          "Intervenir de inmediato tras abrir el MSD",
+          "Esperar solo si se percibe olor a quemado",
+          "Descargar los capacitores puenteándolos con un desarmador"
+        ],
+        "a": 0,
+        "exp": "Antes de abrir la carcasa del inversor: retirar MSD, aplicar LOTO y esperar ≥ 5 min para descarga del enlace CC. Referencia: NFPA 70E §120.5(7), pág. 12.",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": false
+      },
+      {
+        "id": "mod-av-215-q2",
+        "c": "hv",
+        "lvl": 3,
+        "q": "Según el manual MOD-AV-215, ¿qué es obligatorio en «Verificación de ausencia de tensión»?",
+        "o": [
+          "Verificar ausencia de tensión en 3 puntos (HV+ / HV− / chasis) con multímetro CAT III 1000 V; valor aceptable < 60 V CC.",
+          "Confiar en la lectura de 0 V del tablero",
+          "Medir una sola vez sin probar antes el multímetro",
+          "Verificar con un multímetro CAT II de bolsillo"
+        ],
+        "a": 0,
+        "exp": "Verificar ausencia de tensión en 3 puntos (HV+ / HV− / chasis) con multímetro CAT III 1000 V; valor aceptable < 60 V CC. Referencia: NFPA 70E §120.5(7) · verificación 0 V, pág. 14.",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": true
+      },
+      {
+        "id": "mod-av-215-q3",
+        "c": "hv",
+        "lvl": 2,
+        "q": "Según el manual MOD-AV-215, ¿qué es obligatorio en «Rescate en ruta»?",
+        "o": [
+          "En rescate en ruta: no intentar reinicio del inversor si existe olor a quemado o fuga de refrigerante; solicitar grúa con aislamiento.",
+          "Reiniciar el sistema varias veces hasta que arranque",
+          "Remolcar la unidad sin aislar el sistema AV",
+          "Continuar la ruta si la advertencia desaparece"
+        ],
+        "a": 0,
+        "exp": "En rescate en ruta: no intentar reinicio del inversor si existe olor a quemado o fuga de refrigerante; solicitar grúa con aislamiento. Referencia: Procedimiento OEM de rescate, pág. 121.",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": false
+      },
+      {
+        "id": "mod-av-215-q4",
+        "c": "hv",
+        "lvl": 3,
+        "q": "¿Cuál es el orden correcto de la secuencia de seguridad de MOD-AV-215?",
+        "o": [
+          "Descarga / despresurización → Verificación de ausencia de tensión → Rescate en ruta",
+          "Rescate en ruta → Verificación de ausencia de tensión → Descarga / despresurización",
+          "Verificación de ausencia de tensión → Descarga / despresurización → Rescate en ruta",
+          "Verificación de ausencia de tensión → Rescate en ruta → Descarga / despresurización"
+        ],
+        "a": 0,
+        "exp": "OSHA 1910.147 y NFPA 70E: protegerse, aislar y bloquear, esperar la descarga y verificar 0 V antes de intervenir.",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": true
+      },
+      {
+        "id": "mod-av-215-q5",
+        "c": "diag",
+        "lvl": 2,
+        "q": "Según MOD-AV-215, ¿qué indica el manual?",
+        "o": [
+          "Resistencia de aislamiento mínima: 500 Ω/V sobre tensión nominal (≥ 325 kΩ a 650 V), medida con megóhmetro a 1000 V.",
+          "Omitir el paso si la unidad urge salir a ruta",
+          "Hacerlo solo si el supervisor lo solicita",
+          "Reutilizar las piezas desmontadas para ahorrar tiempo"
+        ],
+        "a": 0,
+        "exp": "Resistencia de aislamiento mínima: 500 Ω/V sobre tensión nominal (≥ 325 kΩ a 650 V), medida con megóhmetro a 1000 V. (pág. 37).",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": false
+      },
+      {
+        "id": "mod-av-215-q6",
+        "c": "diag",
+        "lvl": 2,
+        "q": "Según MOD-AV-215, ¿qué indica el manual?",
+        "o": [
+          "DTC P0A0F / U0293: inspeccionar continuidad del lazo HVIL antes de reemplazar el inversor.",
+          "Omitir el paso si la unidad urge salir a ruta",
+          "Hacerlo solo si el supervisor lo solicita",
+          "Reutilizar las piezas desmontadas para ahorrar tiempo"
+        ],
+        "a": 0,
+        "exp": "DTC P0A0F / U0293: inspeccionar continuidad del lazo HVIL antes de reemplazar el inversor. (pág. 92).",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": true
+      },
+      {
+        "id": "mod-av-215-q7",
+        "c": "ev",
+        "lvl": 2,
+        "q": "Par de apriete especificado para «Terminales HV de entrada (DC+ / DC−)» (MOD-AV-215):",
+        "o": [
+          "9 N·m ± 1",
+          "4.5 N·m",
+          "14.4 N·m",
+          "22.5 N·m"
+        ],
+        "a": 0,
+        "exp": "9 N·m ± 1, secuencia DC− → DC+, con Llave dinamométrica aislada 1000 V.",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": false
+      },
+      {
+        "id": "mod-av-215-q8",
+        "c": "ev",
+        "lvl": 2,
+        "q": "Par de apriete especificado para «Barras de fase U / V / W al motor» (MOD-AV-215):",
+        "o": [
+          "22 N·m ± 2",
+          "11 N·m",
+          "35.2 N·m",
+          "55 N·m"
+        ],
+        "a": 0,
+        "exp": "22 N·m ± 2, secuencia U → V → W, repaso cruzado, con Llave dinamométrica aislada.",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": true
+      },
+      {
+        "id": "mod-av-215-q9",
+        "c": "ev",
+        "lvl": 2,
+        "q": "Par de apriete especificado para «Tornillos módulo IGBT a disipador» (MOD-AV-215):",
+        "o": [
+          "5 N·m ± 0.5",
+          "2.5 N·m",
+          "8 N·m",
+          "12.5 N·m"
+        ],
+        "a": 0,
+        "exp": "5 N·m ± 0.5, secuencia Patrón cruzado, 2 pasadas (50 % / 100 %), con Destornillador dinamométrico.",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": false
+      },
+      {
+        "id": "mod-av-215-q10",
+        "c": "ev",
+        "lvl": 2,
+        "q": "Par de apriete especificado para «Carcasa del inversor (M8)» (MOD-AV-215):",
+        "o": [
+          "24 N·m ± 2",
+          "12 N·m",
+          "38.4 N·m",
+          "60 N·m"
+        ],
+        "a": 0,
+        "exp": "24 N·m ± 2, secuencia Estrella, desde el centro, con Llave dinamométrica ½\".",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": true
+      },
+      {
+        "id": "mod-av-215-q11",
+        "c": "ev",
+        "lvl": 2,
+        "q": "Par de apriete especificado para «Racores de refrigerante» (MOD-AV-215):",
+        "o": [
+          "30 N·m ± 3",
+          "15 N·m",
+          "48 N·m",
+          "75 N·m"
+        ],
+        "a": 0,
+        "exp": "30 N·m ± 3, secuencia Entrada → salida, con Llave de pata de gallo.",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": false
+      },
+      {
+        "id": "mod-av-215-q12",
+        "c": "ev",
+        "lvl": 2,
+        "q": "Código SBOM de «Módulo de potencia IGBT 1200 V / 600 A» en MOD-AV-215:",
+        "o": [
+          "INV-650-IGBT-03",
+          "HV-MSD-400A",
+          "HV-CON-3P-IL",
+          "TH-PASTE-01"
+        ],
+        "a": 0,
+        "exp": "INV-650-IGBT-03 · Módulo de potencia IGBT 1200 V / 600 A · grupo Electrónica de potencia AV · criticidad Crítica.",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": true
+      },
+      {
+        "id": "mod-av-215-q13",
+        "c": "ev",
+        "lvl": 2,
+        "q": "Código SBOM de «Desconectador manual de servicio (MSD) 400 A» en MOD-AV-215:",
+        "o": [
+          "HV-MSD-400A",
+          "INV-650-IGBT-03",
+          "HV-CON-3P-IL",
+          "TH-PASTE-01"
+        ],
+        "a": 0,
+        "exp": "HV-MSD-400A · Desconectador manual de servicio (MSD) 400 A · grupo Protección y conexión AV · criticidad Crítica.",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": false
+      },
+      {
+        "id": "mod-av-215-q14",
+        "c": "ev",
+        "lvl": 2,
+        "q": "Código SBOM de «Conector HV 3 pines con interlock HVIL» en MOD-AV-215:",
+        "o": [
+          "HV-CON-3P-IL",
+          "INV-650-IGBT-03",
+          "HV-MSD-400A",
+          "TH-PASTE-01"
+        ],
+        "a": 0,
+        "exp": "HV-CON-3P-IL · Conector HV 3 pines con interlock HVIL · grupo Protección y conexión AV · criticidad Alta.",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": true
+      },
+      {
+        "id": "mod-av-215-q15",
+        "c": "ev",
+        "lvl": 2,
+        "q": "Código SBOM de «Pasta térmica conductiva 3.5 W/m·K (50 g)» en MOD-AV-215:",
+        "o": [
+          "TH-PASTE-01",
+          "INV-650-IGBT-03",
+          "HV-MSD-400A",
+          "HV-CON-3P-IL"
+        ],
+        "a": 0,
+        "exp": "TH-PASTE-01 · Pasta térmica conductiva 3.5 W/m·K (50 g) · grupo Gestión térmica · criticidad Media.",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": false
+      },
+      {
+        "id": "mod-av-215-q16",
+        "c": "ev",
+        "lvl": 2,
+        "q": "Código SBOM de «Refrigerante glicol 50/50 baja conductividad (5 L)» en MOD-AV-215:",
+        "o": [
+          "CL-GLYCOL-50",
+          "INV-650-IGBT-03",
+          "HV-MSD-400A",
+          "HV-CON-3P-IL"
+        ],
+        "a": 0,
+        "exp": "CL-GLYCOL-50 · Refrigerante glicol 50/50 baja conductividad (5 L) · grupo Gestión térmica · criticidad Media.",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": true
+      },
+      {
+        "id": "mod-av-215-q17",
+        "c": "ev",
+        "lvl": 2,
+        "q": "Código SBOM de «Fusible HV 400 A / 1000 V CC» en MOD-AV-215:",
+        "o": [
+          "FUS-HV-400",
+          "INV-650-IGBT-03",
+          "HV-MSD-400A",
+          "HV-CON-3P-IL"
+        ],
+        "a": 0,
+        "exp": "FUS-HV-400 · Fusible HV 400 A / 1000 V CC · grupo Protección y conexión AV · criticidad Alta.",
+        "moduloId": "MOD-AV-215@1",
+        "diferida": false
+      }
+    ],
+    "procedimientos": [
+      {
+        "id": "mod-av-215-taller",
+        "title": "MOD-AV-215 · Inversor de tracción y control de motor · Bus eléctrico 12 m",
+        "mode": "ev",
+        "comps": [
+          "hv",
+          "ev"
+        ],
+        "level": "Intermedio",
+        "min": 11,
+        "hv": true,
+        "intro": "Procedimiento generado del manual «Cursos 2023.pdf» (MOD-AV-215 v1). Aplica la secuencia de seguridad y los pares de apriete publicados por tu supervisor.",
+        "steps": [
+          {
+            "title": "Colocar EPP dieléctrico",
+            "tool": "guantes",
+            "part": "self",
+            "ppe": true,
+            "instr": "Selecciona los guantes dieléctricos y aplícalos (\"Usar en mí\").",
+            "why": "Última barrera si falla la desenergización (NFPA 70E §130.7)."
+          },
+          {
+            "title": "Registrar el estado inicial",
+            "tool": "escaner",
+            "part": "gateway",
+            "instr": "Conecta la herramienta de diagnóstico y documenta DTC y estado.",
+            "why": "Documentas antes de intervenir.",
+            "reading": {
+              "text": "Módulo MOD-AV-215 · DTC documentados · Contacto OFF",
+              "status": "info"
+            }
+          },
+          {
+            "title": "Desconectar baterías de 24 V",
+            "tool": "manual",
+            "part": "bateria_24",
+            "instr": "Llave fuera; desconecta las baterías de 24 V.",
+            "why": "Sin 24 V los contactores AV no cierran.",
+            "check": {
+              "q": "¿Qué borne desconectas primero?",
+              "o": [
+                "El negativo (–)",
+                "El positivo (+)",
+                "Da igual",
+                "Ambos a la vez"
+              ],
+              "a": 0,
+              "fb": "Negativo primero evita cortos a chasis."
+            }
+          },
+          {
+            "title": "Retirar el MSD",
+            "tool": "guantes",
+            "part": "msd",
+            "anim": {
+              "id": "msd",
+              "type": "remove"
+            },
+            "instr": "Con los guantes puestos, retira el MSD.",
+            "why": "Abre físicamente el circuito de tracción."
+          },
+          {
+            "title": "Bloquear y etiquetar (LOTO)",
+            "tool": "candado",
+            "part": "msd",
+            "instr": "Coloca tu candado personal y etiqueta.",
+            "why": "OSHA 29 CFR 1910.147: nadie puede reenergizar mientras trabajas."
+          },
+          {
+            "title": "Esperar la descarga",
+            "tool": null,
+            "part": null,
+            "wait": {
+              "secs": 8,
+              "label": "Antes de abrir la carcasa del inversor: retirar MSD, aplicar LOTO y esperar ≥ 5…"
+            },
+            "instr": "Espera el tiempo de descarga del manual.",
+            "why": "Los capacitores conservan tensión tras abrir el MSD."
+          },
+          {
+            "title": "Prueba \"viva\": probar el multímetro",
+            "tool": "multimetro",
+            "part": "bateria_24",
+            "instr": "Prueba el multímetro en una fuente conocida.",
+            "why": "Confirma que el instrumento mide.",
+            "reading": {
+              "text": "25.3 V CC — el instrumento funciona",
+              "status": "ok"
+            }
+          },
+          {
+            "title": "Prueba \"muerta\": verificar 0 V",
+            "tool": "multimetro",
+            "part": "inversor",
+            "instr": "Verificar ausencia de tensión en 3 puntos (HV+ / HV− / chasis) con multímetro CAT III 1000 V; valor aceptable < 60 V CC.",
+            "why": "NFPA 70E §120.5(7): única forma de saber que no hay tensión.",
+            "reading": {
+              "text": "0.0 V (+/–) · 0.0 V (+/chasis) · 0.0 V (–/chasis)",
+              "status": "ok"
+            }
+          },
+          {
+            "title": "Prueba \"viva\" final",
+            "tool": "multimetro",
+            "part": "bateria_24",
+            "setsSafe": true,
+            "instr": "Vuelve a probar el multímetro.",
+            "why": "Valida la lectura de 0 V.",
+            "reading": {
+              "text": "Verificación válida · sistema seguro",
+              "status": "ok"
+            }
+          },
+          {
+            "title": "Apretar Terminales HV de entrada (DC+ / DC−)",
+            "tool": "torque",
+            "part": "cable_av",
+            "instr": "Aprieta «Terminales HV de entrada (DC+ / DC−)» al valor de MOD-AV-215 (secuencia: DC− → DC+).",
+            "why": "Especificación 9 N·m ± 1, pág. 44. Fuera de tolerancia se registra como error de apriete.",
+            "input": {
+              "label": "Terminales HV de entrada (DC+ / DC−)",
+              "unit": "N·m",
+              "value": 9,
+              "tol": 1
+            }
+          },
+          {
+            "title": "Apretar Barras de fase U / V / W al motor",
+            "tool": "torque",
+            "part": "inversor",
+            "instr": "Aprieta «Barras de fase U / V / W al motor» al valor de MOD-AV-215 (secuencia: U → V → W, repaso cruzado).",
+            "why": "Especificación 22 N·m ± 2, pág. 46. Fuera de tolerancia se registra como error de apriete.",
+            "input": {
+              "label": "Barras de fase U / V / W al motor",
+              "unit": "N·m",
+              "value": 22,
+              "tol": 2
+            }
+          },
+          {
+            "title": "Apretar Tornillos módulo IGBT a disipador",
+            "tool": "torque",
+            "part": "inversor",
+            "instr": "Aprieta «Tornillos módulo IGBT a disipador» al valor de MOD-AV-215 (secuencia: Patrón cruzado, 2 pasadas (50 % / 100 %)).",
+            "why": "Especificación 5 N·m ± 0.5, pág. 59. Fuera de tolerancia se registra como error de apriete.",
+            "input": {
+              "label": "Tornillos módulo IGBT a disipador",
+              "unit": "N·m",
+              "value": 5,
+              "tol": 0.5
+            }
+          },
+          {
+            "title": "Apretar Carcasa del inversor (M8)",
+            "tool": "torque",
+            "part": "inversor",
+            "instr": "Aprieta «Carcasa del inversor (M8)» al valor de MOD-AV-215 (secuencia: Estrella, desde el centro).",
+            "why": "Especificación 24 N·m ± 2, pág. 63. Fuera de tolerancia se registra como error de apriete.",
+            "input": {
+              "label": "Carcasa del inversor (M8)",
+              "unit": "N·m",
+              "value": 24,
+              "tol": 2
+            }
+          },
+          {
+            "title": "Retirar tu bloqueo LOTO",
+            "tool": "candado",
+            "part": "msd",
+            "instr": "Retira tu candado y etiqueta.",
+            "why": "Solo quien lo colocó lo retira."
+          },
+          {
+            "title": "Reinstalar el MSD",
+            "tool": "guantes",
+            "part": "msd",
+            "anim": {
+              "id": "msd",
+              "type": "install"
+            },
+            "instr": "Con EPP, reinstala el MSD.",
+            "why": "Restablece el circuito."
+          },
+          {
+            "title": "Prueba funcional",
+            "tool": "escaner",
+            "part": "gateway",
+            "instr": "Borra DTC y verifica READY.",
+            "why": "Confirma la reparación.",
+            "reading": {
+              "text": "Sin DTC · READY ✓",
+              "status": "ok"
+            }
+          }
+        ],
+        "moduloId": "MOD-AV-215@1"
+      }
+    ],
+    "partInfo": {
+      "cable_av": {
+        "specs": [
+          "Terminales HV de entrada (DC+ / DC−): 9 N·m ± 1 (MOD-AV-215, pág. 44)",
+          "Refacción HV-CON-3P-IL: Conector HV 3 pines con interlock HVIL · kit de rescate"
+        ],
+        "procs": [
+          "mod-av-215-taller"
+        ],
+        "tools": [
+          "torque",
+          "linterna"
+        ]
+      },
+      "inversor": {
+        "specs": [
+          "Barras de fase U / V / W al motor: 22 N·m ± 2 (MOD-AV-215, pág. 46)",
+          "Tornillos módulo IGBT a disipador: 5 N·m ± 0.5 (MOD-AV-215, pág. 59)",
+          "Carcasa del inversor (M8): 24 N·m ± 2 (MOD-AV-215, pág. 63)",
+          "Refacción INV-650-IGBT-03: Módulo de potencia IGBT 1200 V / 600 A",
+          "Refacción TH-PASTE-01: Pasta térmica conductiva 3.5 W/m·K (50 g)",
+          "Refacción PPE-GLV-C0: Guantes dieléctricos clase 0 (1000 V) · kit de rescate"
+        ],
+        "procs": [
+          "mod-av-215-taller"
+        ],
+        "tools": [
+          "torque",
+          "linterna"
+        ]
+      },
+      "enfriamiento": {
+        "specs": [
+          "Racores de refrigerante: 30 N·m ± 3 (MOD-AV-215, pág. 71)",
+          "Refacción CL-GLYCOL-50: Refrigerante glicol 50/50 baja conductividad (5 L) · kit de rescate"
+        ],
+        "procs": [
+          "mod-av-215-taller"
+        ],
+        "tools": [
+          "torque",
+          "linterna"
+        ]
+      },
+      "msd": {
+        "specs": [
+          "Refacción HV-MSD-400A: Desconectador manual de servicio (MSD) 400 A · kit de rescate",
+          "Refacción FUS-HV-400: Fusible HV 400 A / 1000 V CC · kit de rescate"
+        ],
+        "procs": [
+          "mod-av-215-taller"
+        ],
+        "tools": [
+          "linterna"
+        ]
+      }
+    },
+    "tareasPiezas": {
+      "cable_av": [
+        [
+          "torque",
+          "Apretar Terminales HV de entrada (DC+ / DC−) a 9 N·m ± 1 · DC− → DC+ (MOD-AV-215)"
+        ],
+        [
+          "linterna",
+          "Verificar HV-CON-3P-IL (Conector HV 3 pines con interlock HVIL) contra SBOM MOD-AV-215"
+        ]
+      ],
+      "inversor": [
+        [
+          "torque",
+          "Apretar Barras de fase U / V / W al motor a 22 N·m ± 2 · U → V → W, repaso cruzado (MOD-AV-215)"
+        ],
+        [
+          "torque",
+          "Apretar Tornillos módulo IGBT a disipador a 5 N·m ± 0.5 · Patrón cruzado, 2 pasadas (50 % / 100 %) (MOD-AV-215)"
+        ],
+        [
+          "torque",
+          "Apretar Carcasa del inversor (M8) a 24 N·m ± 2 · Estrella, desde el centro (MOD-AV-215)"
+        ],
+        [
+          "linterna",
+          "Verificar INV-650-IGBT-03 (Módulo de potencia IGBT 1200 V / 600 A) contra SBOM MOD-AV-215"
+        ],
+        [
+          "linterna",
+          "Verificar TH-PASTE-01 (Pasta térmica conductiva 3.5 W/m·K (50…) contra SBOM MOD-AV-215"
+        ],
+        [
+          "linterna",
+          "Verificar PPE-GLV-C0 (Guantes dieléctricos clase 0 (1000 V)) contra SBOM MOD-AV-215"
+        ]
+      ],
+      "enfriamiento": [
+        [
+          "torque",
+          "Apretar Racores de refrigerante a 30 N·m ± 3 · Entrada → salida (MOD-AV-215)"
+        ],
+        [
+          "linterna",
+          "Verificar CL-GLYCOL-50 (Refrigerante glicol 50/50 baja conducti…) contra SBOM MOD-AV-215"
+        ]
+      ],
+      "msd": [
+        [
+          "linterna",
+          "Verificar HV-MSD-400A (Desconectador manual de servicio (MSD)…) contra SBOM MOD-AV-215"
+        ],
+        [
+          "linterna",
+          "Verificar FUS-HV-400 (Fusible HV 400 A / 1000 V CC) contra SBOM MOD-AV-215"
+        ]
+      ]
+    },
+    "docs": [
+      {
+        "id": "MOD-AV-215 §Seguridad",
+        "title": "Inversor de tracción y control de motor · Bus eléctrico 12 m — Secuencia de seguridad",
+        "text": "1. Antes de abrir la carcasa del inversor: retirar MSD, aplicar LOTO y esperar ≥ 5 min para descarga del enlace CC. (NFPA 70E §120.5(7)) 2. Verificar ausencia de tensión en 3 puntos (HV+ / HV− / chasis) con multímetro CAT III 1000 V; valor aceptable < 60 V CC. (NFPA 70E §120.5(7) · verificación 0 V) 3. En rescate en ruta: no intentar reinicio del inversor si existe olor a quemado o fuga de refrigerante; solicitar grúa con aislamiento. (Procedimiento OEM de rescate)"
+      },
+      {
+        "id": "MOD-AV-215 §Procedimiento",
+        "title": "Inversor de tracción y control de motor · Bus eléctrico 12 m — Reglas de procedimiento y diagnóstico",
+        "text": "Resistencia de aislamiento mínima: 500 Ω/V sobre tensión nominal (≥ 325 kΩ a 650 V), medida con megóhmetro a 1000 V. DTC P0A0F / U0293: inspeccionar continuidad del lazo HVIL antes de reemplazar el inversor."
+      },
+      {
+        "id": "MOD-AV-215 §Pares",
+        "title": "Inversor de tracción y control de motor · Bus eléctrico 12 m — Pares de apriete",
+        "text": "Terminales HV de entrada (DC+ / DC−): 9 N·m ± 1, secuencia DC− → DC+, herramienta Llave dinamométrica aislada 1000 V. Barras de fase U / V / W al motor: 22 N·m ± 2, secuencia U → V → W, repaso cruzado, herramienta Llave dinamométrica aislada. Tornillos módulo IGBT a disipador: 5 N·m ± 0.5, secuencia Patrón cruzado, 2 pasadas (50 % / 100 %), herramienta Destornillador dinamométrico. Carcasa del inversor (M8): 24 N·m ± 2, secuencia Estrella, desde el centro, herramienta Llave dinamométrica ½\". Racores de refrigerante: 30 N·m ± 3, secuencia Entrada → salida, herramienta Llave de pata de gallo."
+      },
+      {
+        "id": "MOD-AV-215 §SBOM",
+        "title": "Inversor de tracción y control de motor · Bus eléctrico 12 m — SBOM",
+        "text": "INV-650-IGBT-03 Módulo de potencia IGBT 1200 V / 600 A (Electrónica de potencia AV, Crítica). HV-MSD-400A Desconectador manual de servicio (MSD) 400 A (Protección y conexión AV, Crítica, kit de rescate). HV-CON-3P-IL Conector HV 3 pines con interlock HVIL (Protección y conexión AV, Alta, kit de rescate). TH-PASTE-01 Pasta térmica conductiva 3.5 W/m·K (50 g) (Gestión térmica, Media). CL-GLYCOL-50 Refrigerante glicol 50/50 baja conductividad (5 L) (Gestión térmica, Media, kit de rescate). FUS-HV-400 Fusible HV 400 A / 1000 V CC (Protección y conexión AV, Alta, kit de rescate). PPE-GLV-C0 Guantes dieléctricos clase 0 (1000 V) (EPP / seguridad, Crítica, kit de rescate)."
+      }
+    ]
+  }
+}

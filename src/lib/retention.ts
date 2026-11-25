@@ -26,14 +26,42 @@ export const currentRetention = (tech: Technician) => {
   return retention(tech.currentDay - r.day, r.stability);
 };
 
-/** IRE = errores repetidos / errores totales (0-1). */
+/**
+ * Peso por criticidad eléctrica / de seguridad de cada categoría de error.
+ * Un error repetido de LOTO o aislamiento AV pesa más que uno de SBOM.
+ */
+export const IRE_WEIGHTS: Record<ErrorCategory, number> = {
+  loto: 3,
+  aislamiento: 2.5,
+  torque: 1.5,
+  sbom: 1,
+  diagnostico: 1,
+};
+
+/**
+ * IRE ponderado (0-1):  IRE = Σ w_c · repetidos_c  /  Σ w_c · totales_c
+ * con w_c = IRE_WEIGHTS (criticidad eléctrica/seguridad).
+ */
 export const ireValue = (ire: IreBreakdown) => {
   let total = 0;
   let rep = 0;
   for (const k of Object.keys(ire) as ErrorCategory[]) {
-    total += ire[k].total;
-    rep += ire[k].repeated;
+    total += IRE_WEIGHTS[k] * ire[k].total;
+    rep += IRE_WEIGHTS[k] * ire[k].repeated;
   }
+  return total === 0 ? 0 : rep / total;
+};
+
+/** IRE ponderado de toda la flota (agrega numeradores y denominadores). */
+export const fleetIre = (techs: { ire: IreBreakdown }[]) => {
+  let total = 0;
+  let rep = 0;
+  techs.forEach((t) =>
+    (Object.keys(t.ire) as ErrorCategory[]).forEach((k) => {
+      total += IRE_WEIGHTS[k] * t.ire[k].total;
+      rep += IRE_WEIGHTS[k] * t.ire[k].repeated;
+    }),
+  );
   return total === 0 ? 0 : rep / total;
 };
 

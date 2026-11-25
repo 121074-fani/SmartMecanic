@@ -1,0 +1,10 @@
+{
+  "name": "Técnicos del Mañana — Entrenamiento inteligente",
+  "short_name": "Técnicos",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "lang": "es-MX",
+  "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

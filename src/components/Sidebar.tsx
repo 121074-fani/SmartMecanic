@@ -1,4 +1,4 @@
-import { Activity, Bus, FileCog, ScanEye, Users, X, Zap } from 'lucide-react';
+import { Activity, Bus, FileCog, LogOut, ScanEye, Users, X, Zap } from 'lucide-react';
 import type { ViewId } from '../types';
 
 const NAV: { id: ViewId; label: string; sub: string; icon: typeof Activity }[] = [
@@ -19,6 +19,7 @@ export default function Sidebar({
   alerts,
   open,
   onClose,
+  onLogout,
 }: {
   view: ViewId;
   onChange: (v: ViewId) => void;
@@ -26,6 +27,8 @@ export default function Sidebar({
   alerts: number;
   open: boolean;
   onClose: () => void;
+  /** cierra la sesión de authService y vuelve al login */
+  onLogout?: () => void;
 }) {
   return (
     <>
@@ -94,6 +97,14 @@ export default function Sidebar({
             Modo demo · 100 % local
           </div>
         </div>
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className="mx-3 mb-3 flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-400"
+          >
+            <LogOut size={16} /> Cerrar sesión
+          </button>
+        )}
       </aside>
     </>
   );

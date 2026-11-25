@@ -14,7 +14,7 @@ import {
 import { BrainCircuit, ChevronRight, GitBranch, Repeat2, ShieldCheck, Sparkles, TrendingDown, Zap } from 'lucide-react';
 import { CHART_ANIM, ChartTooltip, KpiCard, LegendItem, PageHeader, RiskBadge, SpecialtyBadge } from '../components/ui';
 import { ERROR_RECURRENCE, OBSERVED_EXAMS, RETENTION_COHORTS, type ErrorPeriod } from '../data/mock';
-import { currentRetention, ireValue, PASS_THRESHOLD, retention, riskOf } from '../lib/retention';
+import { currentRetention, fleetIre, ireValue, PASS_THRESHOLD, retention, riskOf } from '../lib/retention';
 import type { Technician } from '../types';
 
 import { useChartColors } from '../lib/theme';
@@ -24,9 +24,12 @@ const SHORT_CAT: Record<string, string> = { 'Protocolo LOTO': 'LOTO', 'Pares de 
 export default function ExecutiveView({
   technicians,
   onOpenTechnician,
+  errorRecurrence = ERROR_RECURRENCE,
 }: {
   technicians: Technician[];
   onOpenTechnician: (id: string) => void;
+  /** recurrencia de errores base + telemetría real de los técnicos (analyticsService) */
+  errorRecurrence?: typeof ERROR_RECURRENCE;
 }) {
   const SERIES = useChartColors();
   const COHORT_COLORS = [SERIES.s3, SERIES.s1, SERIES.s2];
@@ -35,18 +38,10 @@ export default function ExecutiveView({
 
   const kpis = useMemo(() => {
     const avgR = technicians.reduce((a, t) => a + currentRetention(t), 0) / technicians.length;
-    let total = 0;
-    let rep = 0;
-    technicians.forEach((t) =>
-      Object.values(t.ire).forEach((v) => {
-        total += v.total;
-        rep += v.repeated;
-      }),
-    );
     const hvPool = technicians.filter((t) => t.specialty === 'Alto Voltaje');
     const hvCert = technicians.filter((t) => t.hvCertified).length;
     const deleg = technicians.reduce((a, t) => a + t.delegationScore, 0) / technicians.length;
-    return { avgR, ire: total ? rep / total : 0, hvCert, hvPool: hvPool.length, deleg };
+    return { avgR, ire: fleetIre(technicians), hvCert, hvPool: hvPool.length, deleg };
   }, [technicians]);
 
   const retentionData = useMemo(
@@ -63,7 +58,7 @@ export default function ExecutiveView({
     [],
   );
 
-  const errorData = ERROR_RECURRENCE[period];
+  const errorData = errorRecurrence[period];
   const topRescue = [...errorData].sort((a, b) => b['Rescate en Ruta'] / b.Taller - a['Rescate en Ruta'] / a.Taller)[0];
 
   const atRisk = technicians

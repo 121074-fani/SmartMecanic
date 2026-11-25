@@ -20,6 +20,9 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '../components/ui';
 import { EXTRACTION_DIESEL, EXTRACTION_EV, PROCESS_STEPS, SAMPLE_MANUAL } from '../data/mock';
+import { extractFromFile, publishPackage, sampleExtraction } from '../services/ingestionService';
+import { toPublishedSummary } from '../services/moduleStore';
+import { loadSession } from '../services/authService';
 import type { Criticality, ManualExtraction, PublishedModule } from '../types';
 
 const STEP_MS = 750;
@@ -108,6 +111,13 @@ export default function IngestionView({
   const [rejected, setRejected] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
+  /** archivos reales (no serializables) por id, para leer su texto al procesar */
+  const fileRefs = useRef(new Map<string, File>());
+  /** extracción real (texto del PDF) por id de archivo */
+  const [extractions, setExtractions] = useState<Record<string, ManualExtraction>>({});
+  const publishing = useRef(false);
+  const waitingFor = useRef<string | null>(null);
+  const extractionOf = (f: IngestedFile) => extractions[f.id] ?? extractionFor(f.name);
 
   const active = files.find((f) => f.id === activeId) ?? null;
   const patch = (id: string, p: Partial<IngestedFile>) => setFiles((fs) => fs.map((f) => (f.id === id ? { ...f, ...p } : f)));
@@ -129,6 +139,7 @@ export default function IngestionView({
       status: 'En cola',
     }));
     if (!records.length) return;
+    records.forEach((r, i) => fileRefs.current.set(r.id, good[i]));
     setFiles((fs) => [...records, ...fs]);
     if (!processingId) setActiveId(records[0].id);
     // lectura real del número de páginas
@@ -168,6 +179,14 @@ export default function IngestionView({
     patch(id, { status: 'Procesando' });
     setStep(0);
     setLogs([`> Iniciando pipeline IA + RAG para "${f.name}" (${fmtSize(f.size)})`]);
+    // lectura y extracción REAL del texto del PDF en paralelo a la animación del pipeline
+    const file = fileRefs.current.get(id);
+    (file ? extractFromFile(file) : Promise.resolve(sampleExtraction(f.name)))
+      .catch(() => ({ ...extractionFor(f.name), meta: undefined }))
+      .then((ex) => {
+        setExtractions((e) => ({ ...e, [id]: ex }));
+        if (ex.pages && !f.pages) patch(id, { pages: ex.pages });
+      });
   };
 
   // animación del pipeline
@@ -175,19 +194,42 @@ export default function IngestionView({
     if (!processingId) return;
     const f = files.find((x) => x.id === processingId);
     if (!f) return;
-    const ex = extractionFor(f.name);
+    const real = extractions[processingId];
+    const ex = real ?? extractionFor(f.name);
     const pages = f.pages ?? ex.pages;
     const lines = [
-      `  OCR completo · ${pages} páginas leídas de ${f.name}`,
-      `  ${Math.round(pages * 8.7).toLocaleString('es-MX')} fragmentos semánticos generados (≈ 512 tokens c/u)`,
+      real?.meta?.method === 'pdf-text'
+        ? `  Texto real extraído (pdf.js) · ${pages} páginas · ${real.meta.textChars.toLocaleString('es-MX')} caracteres de ${f.name}`
+        : `  OCR completo · ${pages} páginas leídas de ${f.name}`,
+      `  ${(real?.meta?.method === 'pdf-text' ? ex.chunks : Math.round(pages * 8.7)).toLocaleString('es-MX')} fragmentos semánticos generados (≈ 512 tokens c/u)`,
       `  Vectores indexados en colección "${ex.moduleCode.toLowerCase()}" · dim 1024`,
       `  ${ex.rules.length} reglas y ${ex.torques.length} pares de apriete normalizados (N·m)`,
       `  SBOM: ${ex.sbom.length} piezas vinculadas al catálogo maestro`,
       `  Validación de seguridad OK · 0 conflictos con procedimiento LOTO vigente`,
     ];
     if (step >= PROCESS_STEPS.length) {
+      if (!real) {
+        // la extracción (IA Cloud puede tardar) aún no termina: se avisa una sola vez
+        if (waitingFor.current !== processingId) {
+          waitingFor.current = processingId;
+          setLogs((l) => [...l, '  … esperando al motor de extracción (IA Cloud puede tardar hasta 2 min)']);
+        }
+        return;
+      }
       patch(processingId, { status: 'Procesado' });
       setSelections((s) => ({ ...s, [processingId]: autoSelection(ex) }));
+      const m = real.meta;
+      if (m) {
+        setLogs((l) => [
+          ...l,
+          m.engine === 'ia-cloud'
+            ? `✓ Modo de extracción: IA Cloud · ${m.provider} (${m.model})`
+            : `✓ Modo de extracción: Motor Local Offline${m.reason ? ` · ${m.reason}` : ''}`,
+          m.method === 'pdf-text' ? `✓ Entidades extraídas del texto real · categoría ${m.category === 'ev' ? 'eléctrico AV' : 'diésel'}` : '  Plantilla aplicada (sin texto extraíble)',
+          ...(m.aiLessons?.length || m.aiQuestions?.length ? [`  IA: ${m.aiLessons?.length ?? 0} lecciones y ${m.aiQuestions?.length ?? 0} preguntas sintetizadas`] : []),
+          ...m.notes.map((n) => `  ⚠ ${n}`),
+        ]);
+      }
       setProcessingId(null);
       return;
     }
@@ -197,13 +239,13 @@ export default function IngestionView({
     }, STEP_MS);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [processingId, step]);
+  }, [processingId, step, extractions]);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
   }, [logs]);
 
-  const result = active && (active.status === 'Procesado' || active.status === 'Publicado') ? extractionFor(active.name) : null;
+  const result = active && (active.status === 'Procesado' || active.status === 'Publicado') ? extractionOf(active) : null;
   const sel = active ? selections[active.id] : undefined;
   const locked = active?.status === 'Publicado';
 
@@ -225,15 +267,24 @@ export default function IngestionView({
 
   const totalSelected = sel ? sel.rules.length + sel.torques.length + sel.sbom.length : 0;
 
-  const publish = () => {
-    if (!active || !result || !sel || totalSelected === 0) return;
-    onPublish({
-      code: result.moduleCode,
-      name: `${result.moduleName} (${sel.rules.length} reglas · ${sel.torques.length} pares · ${sel.sbom.length} piezas)`,
-      date: new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }),
-      targets: ['App Móvil', 'Visor AR'],
-    });
-    patch(active.id, { status: 'Publicado' });
+  /** Construye el PublishedModulePackage completo, lo persiste en el almacén compartido y lo refleja en el Dashboard. */
+  const publish = async () => {
+    if (!active || !result || !sel || totalSelected === 0 || publishing.current) return;
+    publishing.current = true;
+    const id = active.id;
+    try {
+      const { pkg, synced, json } = await publishPackage(result, sel, loadSession()?.email ?? 'supervisor');
+      onPublish(toPublishedSummary(pkg));
+      patch(id, { status: 'Publicado' });
+      setLogs((l) => [
+        ...l,
+        `✓ Paquete ${pkg.id} publicado · ${pkg.entrenamiento.lecciones.length} lecciones · ${pkg.entrenamiento.preguntas.length} preguntas · ${pkg.entrenamiento.procedimientos.length} procedimiento(s)`,
+        synced ? '  Sincronizado con la API local y la app del técnico' : '  Guardado localmente · se sincronizará con la API al reconectar',
+        ...(json ? [`  JSON público: ${json} · catálogo /data/manuales/index.json`] : []),
+      ]);
+    } finally {
+      publishing.current = false;
+    }
   };
 
   const pct = Math.round((step / PROCESS_STEPS.length) * 100);
@@ -470,7 +521,7 @@ export default function IngestionView({
                   <CheckCircle2 size={16} /> Publicado en App Móvil y Visor AR
                 </span>
               ) : (
-                <button onClick={publish} disabled={totalSelected === 0} className="btn-primary w-full px-5 py-2.5 sm:w-auto">
+                <button onClick={() => void publish()} disabled={totalSelected === 0} className="btn-primary w-full px-5 py-2.5 sm:w-auto">
                   <Rocket size={16} /> {alreadyPublished ? 'Publicar nueva versión' : 'Publicar en App Móvil y Visor AR'}
                 </button>
               )}

@@ -7,7 +7,7 @@ import TechniciansView from './views/TechniciansView';
 import IngestionView from './views/IngestionView';
 import AuditView from './views/AuditView';
 import LoginView from './views/LoginView';
-import { BASE_ACTIVE_MODULES, INITIAL_PUBLISHED, INITIAL_TECHNICIANS } from './data/mock';
+import { BASE_ACTIVE_MODULES, ERROR_RECURRENCE, INITIAL_PUBLISHED, INITIAL_TECHNICIANS } from './data/mock';
 import {
   activateReinforcement,
   applyReinforcementExam,
@@ -15,21 +15,29 @@ import {
   riskOf,
   simulateDeferredExam,
 } from './lib/retention';
-import { loadSession, loadUsers, saveSession, type Session } from './lib/auth';
+import { saveSession, type Session } from './lib/auth';
+import { announceHub, loadSession, loadTecnicoSession, startSession, TECNICO_APP_URL } from './services/authService';
+import { listEvents, listModules, syncEvents, syncModules, toPublishedSummary } from './services/moduleStore';
+import { applyTelemetry } from './services/analyticsService';
+import { subscribeHub } from './services/hubClient';
 import { useTheme } from './lib/theme';
-import type { PublishedModule, Technician, ViewId } from './types';
+import type { PublishedModule, TelemetryEvent, Technician, ViewId } from './types';
 
 const VIEWS: ViewId[] = ['resumen', 'tecnicos', 'ingesta', 'auditoria'];
 const params = new URLSearchParams(window.location.search);
 const initialView = (VIEWS as string[]).includes(params.get('view') ?? '') ? (params.get('view') as ViewId) : 'resumen';
 
-/** Restaura la sesión solo si el correo sigue autorizado (un supervisor pudo revocarlo). */
-const restoreSession = (): Session | null => {
-  const s = loadSession();
-  if (!s) return null;
-  const u = loadUsers().find((x) => x.email === s.email);
-  return u ? { email: u.email, name: u.name, role: u.role } : null;
-};
+/** `/?app=tecnico`: el login unificado se usa para entrar a la app del técnico. */
+const tecnicoLogin = params.get('app') === 'tecnico';
+
+/** Restaura la sesión solo si el correo sigue autorizado (un supervisor pudo revocarlo) y no expiró. */
+const restoreSession = (): Session | null => (tecnicoLogin ? null : loadSession());
+
+/** Día del programa en que cada técnico base empieza a usar la app (día simulado 0 → este día). */
+const TELEMETRY_ANCHORS = Object.fromEntries(INITIAL_TECHNICIANS.map((t) => [t.id, t.currentDay]));
+
+/** Módulos semilla + paquetes reales publicados en el almacén compartido. */
+const loadPublished = (): PublishedModule[] => [...listModules().map(toPublishedSummary), ...INITIAL_PUBLISHED];
 
 const initialsOf = (n: string) =>
   n.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
@@ -37,9 +45,11 @@ const initialsOf = (n: string) =>
 export default function App() {
   const { theme, toggle } = useTheme();
   const [session, setSession] = useState<Session | null>(restoreSession);
+  const [tecnicoMode, setTecnicoMode] = useState(tecnicoLogin);
   const [view, setView] = useState<ViewId>(initialView);
   const [technicians, setTechnicians] = useState<Technician[]>(INITIAL_TECHNICIANS);
-  const [published, setPublished] = useState<PublishedModule[]>(INITIAL_PUBLISHED);
+  const [published, setPublished] = useState<PublishedModule[]>(loadPublished);
+  const [events, setEvents] = useState<TelemetryEvent[]>(listEvents);
   const [focusTechId, setFocusTechId] = useState<string | null>(params.get('tech'));
   const [toast, setToast] = useState<string | null>(null);
   const [navOpen, setNavOpen] = useState(false);
@@ -54,13 +64,52 @@ export default function App() {
     return () => window.removeEventListener('mousedown', close);
   }, [menuOpen]);
 
+  // Si ya hay un técnico con sesión válida y se pidió su login, se le envía directo a su app.
+  useEffect(() => {
+    if (tecnicoLogin && loadTecnicoSession()) window.location.replace(TECNICO_APP_URL);
+  }, []);
+
+  // Sincronización con el hub: otras pestañas (BroadcastChannel/storage) + API local (otros dispositivos).
+  useEffect(() => {
+    announceHub();
+    const refresh = (topic: string) => {
+      if (topic === 'modules') setPublished(loadPublished());
+      if (topic === 'events') setEvents(listEvents());
+    };
+    const poll = async () => {
+      const [mods, evs] = await Promise.all([syncModules(), syncEvents()]);
+      setPublished((p) => (mods.length + INITIAL_PUBLISHED.length !== p.length ? loadPublished() : p));
+      setEvents((prev) => (evs.length !== prev.length ? evs : prev));
+    };
+    void poll();
+    return subscribeHub(refresh, poll, 4000);
+  }, []);
+
+  /** Técnicos base + acciones reales que los técnicos ejecutaron en tecnicos-del-manana. */
+  const live = useMemo(() => applyTelemetry(technicians, events, TELEMETRY_ANCHORS, ERROR_RECURRENCE), [technicians, events]);
+  const liveTechs = live.technicians;
+
   const activeModules = BASE_ACTIVE_MODULES + (published.length - INITIAL_PUBLISHED.length);
-  const highRisk = useMemo(() => technicians.filter((t) => riskOf(t) === 'Alto').length, [technicians]);
+  const highRisk = useMemo(() => liveTechs.filter((t) => riskOf(t) === 'Alto').length, [liveTechs]);
 
   const showToast = (msg: string) => {
     setToast(msg);
     window.setTimeout(() => setToast(null), 3200);
   };
+
+  // Alertas tempranas: se avisa con el toast existente de cada alerta crítica/alta NUEVA.
+  const seenAlerts = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!seenAlerts.current) {
+      seenAlerts.current = new Set(live.alerts.map((a) => a.id));
+      return;
+    }
+    const fresh = live.alerts.filter((a) => !seenAlerts.current!.has(a.id));
+    fresh.forEach((a) => seenAlerts.current!.add(a.id));
+    const top = fresh.find((a) => a.nivel === 'critica') ?? fresh.find((a) => a.nivel === 'alta');
+    if (top && session) showToast(`⚠ ${top.tecnico}: ${top.mensaje}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live.alerts]);
 
   const updateTech = (id: string, fn: (t: Technician) => Technician) =>
     setTechnicians((ts) => ts.map((t) => (t.id === id ? fn(t) : t)));
@@ -68,15 +117,16 @@ export default function App() {
   const simulate = (id: string) => updateTech(id, simulateDeferredExam);
 
   const activateExam = (id: string) => {
-    const t = technicians.find((x) => x.id === id);
+    const t = liveTechs.find((x) => x.id === id);
     updateTech(id, activateReinforcement);
     if (t) showToast(`Examen de refuerzo activado solo para ${t.name}`);
   };
   const applyExam = (id: string) => updateTech(id, applyReinforcementExam);
   const cancelExam = (id: string) => updateTech(id, cancelReinforcement);
 
+  /** IngestionView ya persistió el paquete completo en el almacén compartido; aquí solo se refleja. */
   const publish = (m: PublishedModule) => {
-    setPublished((p) => [m, ...p]);
+    setPublished((p) => [m, ...p.filter((x) => !m.packageId || x.packageId !== m.packageId)]);
     showToast(`${m.code} publicado en App Móvil y Visor AR`);
   };
 
@@ -86,17 +136,26 @@ export default function App() {
   };
 
   const login = (s: Session) => {
-    saveSession(s);
-    setSession(s);
+    const full = startSession(s);
+    if (full.role === 'Técnico') {
+      window.location.assign(TECNICO_APP_URL);
+      return;
+    }
+    if (tecnicoMode) {
+      window.history.replaceState(null, '', window.location.pathname);
+      setTecnicoMode(false);
+    }
+    setSession(full);
   };
   const logout = () => {
     saveSession(null);
     setSession(null);
     setMenuOpen(false);
+    setNavOpen(false);
     setFocusTechId(null);
   };
 
-  if (!session) return <LoginView onLogin={login} />;
+  if (!session || tecnicoMode) return <LoginView onLogin={login} />;
 
   return (
     <div className="flex min-h-screen">
@@ -107,6 +166,7 @@ export default function App() {
         alerts={highRisk}
         open={navOpen}
         onClose={() => setNavOpen(false)}
+        onLogout={logout}
       />
       <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-base-700 bg-base-950/85 px-4 py-3 backdrop-blur sm:gap-4 lg:px-8">
@@ -169,10 +229,10 @@ export default function App() {
         </header>
 
         <main key={view} className="animate-fade-up px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-          {view === 'resumen' && <ExecutiveView technicians={technicians} onOpenTechnician={openTechnician} />}
+          {view === 'resumen' && <ExecutiveView technicians={liveTechs} errorRecurrence={live.errorRecurrence} onOpenTechnician={openTechnician} />}
           {view === 'tecnicos' && (
             <TechniciansView
-              technicians={technicians}
+              technicians={liveTechs}
               onSimulate={simulate}
               onActivateExam={activateExam}
               onApplyExam={applyExam}
