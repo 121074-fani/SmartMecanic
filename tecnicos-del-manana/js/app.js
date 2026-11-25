@@ -1817,6 +1817,7 @@ function runSim(box, sim, { guided, onDone }) {
   const tick = setInterval(() => { const s = round((Date.now() - st.start) / 1000); const t = $('#timer', box); if (t && !st.over) t.textContent = `⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }, 1000);
   cleanup.push(() => { clearInterval(tick); st.timers.forEach(clearInterval); });
   const stage = $('#stage', box);
+  attachHandControl(stage, scene);
   const pname = k => sim.parts[k] || COMPONENTS[k]?.name || k;
 
   $$('.vt', box).forEach(b => b.onclick = () => {
@@ -2085,6 +2086,7 @@ function runSenala(el, pr) {
   (sc.initial || []).forEach(x => scene.setPart(x.id, { ...x, instant: true }));
   cleanup.push(() => scene.destroy());
   const stage = $('#stage');
+  attachHandControl(stage, scene);
   $$('.vt', stage).forEach(b => b.onclick = () => {
     const a = b.dataset.a;
     if (a === 'in') scene.zoom(0.85);
@@ -2426,4 +2428,79 @@ function viewModule(el, n) {
         <span class="pc-status">${p.locked ? '🔒 Requisito' : p.done ? '✓ Completado' : 'Empezar →'}</span>
       </a>`).join('') || '<p class="muted">No hay prácticas de este módulo para este tipo de autobús.</p>'}</div>
     <div class="row"><button class="btn ghost" onclick="go('inspeccion')">🚌 Explorar el ${esc(m.name)} en 3D</button></div>`;
+}
+
+/* =========================================================
+   CONTROL CON LA MANO (cámara) — detección de movimiento simple
+   Compara cada cuadro con el anterior a baja resolución, calcula
+   el centro del movimiento y gira el modelo según cómo se desplaza.
+   No usa librerías ni internet; las imágenes no salen del equipo.
+   ========================================================= */
+function attachHandControl(stage, scene) {
+  const tools = $('.vtools', stage);
+  if (!tools) return;
+  const btn = document.createElement('button');
+  btn.className = 'vt'; btn.type = 'button'; btn.title = 'Mover el modelo con la mano (cámara)'; btn.textContent = '📷';
+  tools.prepend(btn);
+  const pip = document.createElement('div');
+  pip.className = 'handcam'; pip.hidden = true;
+  pip.innerHTML = '<video playsinline muted></video><i class="hdot"></i><span class="hlabel">Mueve la mano frente a la cámara</span><button type="button" class="hclose" aria-label="Apagar cámara">✕</button>';
+  stage.appendChild(pip);
+  const video = $('video', pip), dot = $('.hdot', pip), label = $('.hlabel', pip);
+  const W = 64, H = 48, work = document.createElement('canvas');
+  work.width = W; work.height = H;
+  const wctx = work.getContext('2d', { willReadFrequently: true });
+  let stream = null, raf = 0, prev = null, last = null, vx = 0, vy = 0, frame = 0;
+
+  async function start() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast('📷 Este navegador no permite usar la cámara aquí. Abre la app con localhost (python3 -m http.server).'); return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } }, audio: false });
+    } catch (e) {
+      toast(e && e.name === 'NotAllowedError' ? '📷 Permiso de cámara denegado. Actívalo en el candado de la barra de direcciones.' : '📷 No se pudo abrir la cámara en esta página.');
+      return;
+    }
+    pip.hidden = false; btn.classList.add('on'); scene.autoRotate = false;
+    video.srcObject = stream;
+    video.play().catch(() => { /* el ciclo espera a que haya imagen */ });
+    prev = null; last = null; vx = vy = 0;
+    loop();
+  }
+  function stop() {
+    cancelAnimationFrame(raf);
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null; pip.hidden = true; btn.classList.remove('on'); dot.style.display = 'none';
+  }
+  function loop() {
+    raf = requestAnimationFrame(loop);
+    if (!stream || video.readyState < 2 || (frame++ & 1)) return;      // ~30 análisis por segundo
+    wctx.drawImage(video, 0, 0, W, H);
+    const px = wctx.getImageData(0, 0, W, H).data;
+    const gray = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) gray[i] = (px[i * 4] * 3 + px[i * 4 + 1] * 6 + px[i * 4 + 2]) / 10;
+    let n = 0, sx = 0, sy = 0;
+    if (prev) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (Math.abs(gray[i] - prev[i]) > 26) { n++; sx += x; sy += y; }
+    }
+    prev = gray;
+    const moving = n > 20 && n < W * H * 0.45;                           // ignora ruido y cambios bruscos de luz
+    if (moving) {
+      const cx = (W - 1 - sx / n) / (W - 1), cy = (sy / n) / (H - 1);    // espejo: como te ves en la cámara
+      dot.style.display = 'block'; dot.style.left = (cx * 100) + '%'; dot.style.top = (cy * 100) + '%';
+      label.textContent = '✋ Detectando movimiento';
+      if (last) { vx = vx * 0.6 + (cx - last.x) * 0.4; vy = vy * 0.6 + (cy - last.y) * 0.4; }
+      last = { x: cx, y: cy };
+    } else {
+      vx *= 0.8; vy *= 0.8; last = null;
+      if (!n) { dot.style.display = 'none'; label.textContent = 'Mueve la mano frente a la cámara'; }
+    }
+    if (Math.abs(vx) > 0.004) scene.yaw -= vx * 4.2;                     // izquierda / derecha → girar
+    if (Math.abs(vy) > 0.004) scene.pitch = Math.min(1.35, Math.max(-0.15, scene.pitch + vy * 2.4));   // arriba / abajo → inclinar
+  }
+  btn.addEventListener('click', () => (stream ? stop() : start()));
+  $('.hclose', pip).onclick = stop;
+  cleanup.push(stop);
 }
