@@ -127,6 +127,8 @@ const E3D = (() => {
       this.gridColor = opts.gridColor ?? 'rgba(15,42,74,0.10)';
       this.onPick = null;
       this.drawn = [];
+      this.view = null;        // realidad aumentada: { ox, oy, rot } desplaza y gira la imagen para que el modelo quede "fijo" en el mundo
+      this.noGrid = false;     // sin rejilla (cuando el fondo es la cámara)
       this.running = true;
       // límites de la carrocería (cambian con el largo/alto de cada modelo)
       this.body = opts.body || { hx: 6, cy: 1.85, hy: 1.35, hz: 1.25, top: 3.2 };
@@ -272,12 +274,17 @@ const E3D = (() => {
       const cam = this.camera(yawOff);
       const f = Math.min(W * 0.75, H) * 1.45;
       const cx = x0 + W / 2, cy = y0 + H / 2 + H * 0.04;
+      const V = this.view, vc = V ? Math.cos(V.rot || 0) : 1, vs = V ? Math.sin(V.rot || 0) : 0;
+      const vx = V ? (V.ox || 0) * this.dpr : 0, vy = V ? (V.oy || 0) * this.dpr : 0;
       const proj = (p) => {
         const d = sub(p, cam.pos);
         const z = dot(d, cam.fwd);
-        return [cx + dot(d, cam.right) * f / z, cy - dot(d, cam.up) * f / z, z];
+        let X = dot(d, cam.right) * f / z, Y = -dot(d, cam.up) * f / z;
+        if (V) { const x2 = X * vc - Y * vs, y2 = X * vs + Y * vc; X = x2 + vx; Y = y2 + vy; }
+        return [cx + X, cy + Y, z];
       };
       // suelo (rejilla)
+      if (!this.noGrid) {
       ctx.lineWidth = 1 * this.dpr;
       ctx.strokeStyle = this.gridColor;
       const g = this.gridStep, G = g * 10;
@@ -290,13 +297,14 @@ const E3D = (() => {
         });
       }
       ctx.globalAlpha = 1;
+      }
       // sombra
       const R = this.shadowRect;
       if (R) {
         [0.5, 0.3, 0.15, 0].forEach((e, k) => {
           const sh = [[R[0] - e, 0.01, R[2] - e], [R[1] + e, 0.01, R[2] - e], [R[1] + e, 0.01, R[3] + e], [R[0] - e, 0.01, R[3] + e]].map(proj);
           if (!sh.every(p => p[2] > 0.5)) return;
-          ctx.fillStyle = `rgba(15,42,74,${[0.04, 0.05, 0.06, 0.1][k]})`;
+          ctx.fillStyle = this.noGrid ? `rgba(0,0,0,${[0.08, 0.1, 0.12, 0.2][k]})` : `rgba(15,42,74,${[0.04, 0.05, 0.06, 0.1][k]})`;
           ctx.beginPath(); sh.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.fill();
         });
       }
