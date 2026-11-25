@@ -164,6 +164,7 @@
       switchBtn = box.querySelector('[data-hswitch]');
     } else {
       video.className = 'arvideo';
+      stage.appendChild(overlay);                               // esqueleto de la mano sobre el visor completo
       box = document.createElement('div');
       box.className = 'arhud'; box.hidden = true;
       box.innerHTML = '<div class="arbar"><span class="arlive"><i></i>Control con la mano</span>' +

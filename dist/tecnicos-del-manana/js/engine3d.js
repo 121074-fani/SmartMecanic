@@ -129,6 +129,7 @@ const E3D = (() => {
       this.drawn = [];
       this.view = null;        // realidad aumentada: { ox, oy, rot } desplaza y gira la imagen para que el modelo quede "fijo" en el mundo
       this.noGrid = false;     // sin rejilla (cuando el fondo es la cámara)
+      this.holes = null;       // [[x, y, r], …] en px del lienzo: "ventanas" transparentes (ver los dedos reales detrás del modelo)
       this.running = true;
       // límites de la carrocería (cambian con el largo/alto de cada modelo)
       this.body = opts.body || { hx: 6, cy: 1.85, hy: 1.35, hz: 1.25, top: 3.2 };
@@ -292,6 +293,20 @@ const E3D = (() => {
         ctx.fillStyle = '#000'; ctx.fillRect(half - 2, 0, 4, H);
       } else {
         this._draw(0, 0, W, H, 0, t, true);
+      }
+      // ventanas suaves donde están los dedos: con la cámara de fondo, el modelo no tapa la punta de los dedos
+      if (this.holes && this.holes.length) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        for (const [hx, hy, hr] of this.holes) {
+          const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, hr);
+          g.addColorStop(0, 'rgba(0,0,0,0.9)');
+          g.addColorStop(0.55, 'rgba(0,0,0,0.6)');
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
       }
     }
     _draw(x0, y0, W, H, yawOff, t, keepPick) {
