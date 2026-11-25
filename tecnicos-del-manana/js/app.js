@@ -493,16 +493,20 @@ function viewLesson(el, id) {
   if (!l) return go('ruta');
   let i = 0;
   const doc = DOCS.find(d => d.id === l.ref);
+  const views = LESSON_3D[l.id] || [];
+  el.innerHTML = `
+    <div class="page-head"><div><a href="#/ruta" class="back">← Mi ruta</a><span class="eyebrow">${comp(l.comp).icon} ${esc(compName(l.comp))} · Micro-lección · ${l.min} min</span><h1>${esc(l.title)}</h1></div></div>
+    <div class="lesson ${views.length ? 'with3d' : ''}">
+      <div class="dots" id="ldots"></div>
+      <div class="card lcard" id="lc"></div>
+      ${views.length ? lesson3dHTML(views) : ''}
+      <div class="card src"><b>{{i:file}} Fuente autorizada:</b> ${esc(doc?.title || l.ref)} <span class="muted">(${esc(l.ref)})</span>
+        <button class="btn link" onclick="go('asistente')">Preguntar al asistente</button></div>
+    </div>`;
+  const v3d = views.length ? mountLesson3D($('.l3d', el), views) : null;
   const draw = () => {
     const isCheck = i >= l.cards.length;
-    el.innerHTML = `
-      <div class="page-head"><div><a href="#/ruta" class="back">← Mi ruta</a><span class="eyebrow">${comp(l.comp).icon} ${esc(compName(l.comp))} · Micro-lección · ${l.min} min</span><h1>${esc(l.title)}</h1></div></div>
-      <div class="lesson">
-        <div class="dots">${[...l.cards, 0].map((_, k) => `<i class="${k < i ? 'd' : k === i ? 'c' : ''}"></i>`).join('')}</div>
-        <div class="card lcard" id="lc"></div>
-        <div class="card src"><b>{{i:file}} Fuente autorizada:</b> ${esc(doc?.title || l.ref)} <span class="muted">(${esc(l.ref)})</span>
-          <button class="btn link" onclick="go('asistente')">Preguntar al asistente</button></div>
-      </div>`;
+    $('#ldots').innerHTML = [...l.cards, 0].map((_, k) => `<i class="${k < i ? 'd' : k === i ? 'c' : ''}"></i>`).join('');
     const lc = $('#lc');
     if (!isCheck) {
       const c = l.cards[i];
@@ -510,10 +514,12 @@ function viewLesson(el, id) {
         <div class="row"><button class="btn ghost" ${i === 0 ? 'disabled' : ''} id="prev">← Anterior</button><button class="btn primary" id="nxt">${i === l.cards.length - 1 ? 'Comprobar lo aprendido →' : 'Siguiente →'}</button></div>`;
       $('#prev').onclick = () => { i--; draw(); };
       $('#nxt').onclick = () => { i++; draw(); };
+      v3d && v3d.follow(c.t + ' ' + c.b);
     } else {
       const order = shuffle(l.check.o.map((_, k) => k));
       lc.innerHTML = `<div class="keypoint">{{i:bulb}} ${esc(l.key)}</div><h3>${esc(l.check.q)}</h3>
         <div class="opts">${order.map(k => `<button class="opt" data-k="${k}">${esc(l.check.o[k])}</button>`).join('')}</div><div class="quiz-fb"></div>`;
+      v3d && v3d.follow(l.check.q + ' ' + l.check.o[l.check.a] + ' ' + l.key);
       $$('.opt', lc).forEach(b => b.onclick = () => {
         const ok = +b.dataset.k === l.check.a;
         $$('.opt', lc).forEach(x => { x.disabled = true; if (+x.dataset.k === l.check.a) x.classList.add('right'); });
@@ -526,6 +532,86 @@ function viewLesson(el, id) {
     }
   };
   draw();
+}
+
+/* ---------- Visor 3D de la micro-lección ---------- */
+function lesson3dHTML(views) {
+  return `<div class="card l3d">
+    <div class="l3d-head"><span class="l3d-title">{{i:cube}} Explora en 3D</span>
+      ${views.length > 1 ? `<div class="seg sm" id="l3dSeg">${views.map((v, k) => `<button type="button" data-v="${k}" class="${k ? '' : 'on'}">${esc(v.name)}</button>`).join('')}</div>` : `<span class="muted small">${esc(views[0].name)}</span>`}</div>
+    <div class="stage l3d-stage" id="l3dStage">
+      <canvas></canvas>
+      <div class="vtools"><button class="vt" data-a="in" title="Acercar">＋</button><button class="vt" data-a="out" title="Alejar">－</button><button class="vt" data-a="reset" title="Vista inicial">⟲</button><button class="vt" data-a="full" title="Pantalla completa">{{i:expand}}</button></div>
+      <div class="stage-hint">Arrastra para girar · rueda o pellizco para acercar · toca una pieza</div>
+    </div>
+    <div class="l3d-info" id="l3dInfo"></div>
+    <div class="chips l3d-chips" id="l3dChips"></div>
+  </div>`;
+}
+function mountLesson3D(box, views) {
+  const stage = $('#l3dStage', box), info = $('#l3dInfo', box), chipsEl = $('#l3dChips', box);
+  let scene = null, view = null, cam = null, sel = null, lastText = '';
+  const nameOf = k => {
+    if (view.mode) return COMPONENTS[k]?.name || k;
+    const sim = SIMS.find(s => s.scene === view.scene);
+    return (sim && sim.parts[k]) || k;
+  };
+  const descOf = k => view.mode ? (PART_INFO[k]?.fn || COMPONENTS[k]?.desc || '') : (DETAIL_INFO[k] || '');
+  const showInfo = (k, auto) => {
+    sel = k;
+    if (scene) { scene.selected = k; scene.highlight = k; if (view.mode && k && !auto) scene.focusOn(k); }
+    $$('button', chipsEl).forEach(b => b.classList.toggle('on', b.dataset.k === k));
+    if (!k) { info.innerHTML = `<p class="muted small">Toca una pieza del modelo o de la lista para ver qué es y para qué sirve.</p>`; return; }
+    const hv = view.mode ? HV_PARTS.includes(k) : ['bateria', 'msd', 'msd_base', 'busbar', 'tp', 'housing', 'lid', 'motor'].includes(k);
+    info.innerHTML = `<div class="l3d-part">${auto ? '<span class="l3d-auto">En esta tarjeta</span>' : ''}<b>${esc(nameOf(k))}</b>${hv ? ' <span class="tag bad">{{i:bolt}} Alto voltaje</span>' : ''}<p>${esc(descOf(k))}</p></div>`;
+  };
+  function build(k) {
+    view = views[k];
+    if (scene) scene.destroy();
+    const old = $('canvas', stage), cv = document.createElement('canvas');   // lienzo nuevo: sin eventos del modelo anterior
+    old.replaceWith(cv);
+    if (view.mode) {
+      cam = { yaw: 0.75, pitch: 0.38, dist: 18, target: [0, 1.5, 0] };
+      scene = new E3D.Scene(cv, { xray: true });
+      scene.setMeshes(E3D.buildBus(view.mode));
+      scene.labels = Object.fromEntries(view.focus.map(id => [id, COMPONENTS[id]?.name || id]));
+      Object.keys(COMPONENTS).forEach(id => { if (!scene.labels[id]) scene.labels[id] = COMPONENTS[id].name; });
+    } else {
+      const sc = SIM_SCENES[view.scene];
+      cam = { ...sc.cam, target: [...sc.cam.target] };
+      scene = new E3D.Scene(cv, { hideInternal: false, xray: false, gridStep: sc.grid, shadowRect: sc.shadow, yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist, target: [...cam.target] });
+      scene.setMeshes(sc.build());
+      (view.hide || []).forEach(id => scene.setPart(id, { a: 0, instant: true }));
+      const sim = SIMS.find(s => s.scene === view.scene);
+      scene.labels = { ...(sim ? sim.parts : {}) };
+    }
+    scene.onPick = id => showInfo(id);
+    chipsEl.innerHTML = view.focus.map(id => `<button type="button" data-k="${id}">${esc(nameOf(id))}</button>`).join('');
+    $$('button', chipsEl).forEach(b => b.onclick = () => showInfo(b.dataset.k));
+    $$('#l3dSeg button', box).forEach(b => b.classList.toggle('on', +b.dataset.v === k));
+    follow(lastText);
+  }
+  // resalta la pieza de la que habla la tarjeta actual
+  function follow(text) {
+    lastText = text || '';
+    const t = lastText.toLowerCase();
+    const hit = view.focus.find(id => (PART_KEYWORDS[id] || []).some(w => t.includes(w.toLowerCase())));
+    if (hit) {
+      showInfo(hit, true);
+      if (view.mode) scene.focusOn(hit);
+    } else { showInfo(null); if (scene) { scene.highlight = scene.selected = null; } }
+  }
+  $$('.vt', stage).forEach(b => b.onclick = () => {
+    const a = b.dataset.a;
+    if (a === 'in') scene.zoom(0.85);
+    if (a === 'out') scene.zoom(1.18);
+    if (a === 'reset') { scene.yaw = cam.yaw; scene.pitch = cam.pitch; scene.dist = cam.dist; scene.target = [...cam.target]; }
+    if (a === 'full') { try { document.fullscreenElement ? document.exitFullscreen() : stage.requestFullscreen(); } catch (e) { toast('Pantalla completa no disponible aquí'); } }
+  });
+  $$('#l3dSeg button', box).forEach(b => b.onclick = () => build(+b.dataset.v));
+  cleanup.push(() => scene && scene.destroy());
+  build(0);
+  return { follow };
 }
 function completeLesson(l, ok) {
   const first = S.lessonsDone[l.id] == null;
