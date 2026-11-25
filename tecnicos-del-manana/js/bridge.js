@@ -9,7 +9,7 @@
    ========================================================= */
 (function () {
   'use strict';
-  var KEYS = { users: 'fa-users', session: 'fa-session-tecnico', hub: 'fa-hub' };
+  var KEYS = { session: 'fa-session-tecnico', hub: 'fa-hub' };
   var CHANNEL = 'fa-hub';
 
   function read(k) {
@@ -21,13 +21,10 @@
   var integrated = location.protocol !== 'file:' && (!!hub || /\/tecnicos-del-manana\//.test(location.pathname));
   var loginUrl = (hub && hub.loginUrl) || location.origin + '/?app=tecnico';
 
+  // login abierto (demo): basta una sesión de técnico vigente, con cualquier usuario
   function isAuthorized(s) {
     if (!s || !s.email || s.role !== 'Técnico') return false;
-    if (s.expiresAt && s.expiresAt < Date.now()) return false;
-    var users = read(KEYS.users);
-    if (Array.isArray(users)) return users.some(function (u) { return u.email === s.email && u.role === 'Técnico'; });
-    if (hub && Array.isArray(hub.tecnicosAutorizados)) return hub.tecnicosAutorizados.indexOf(s.email) >= 0;
-    return true; // lista aún no guardada: el portal usa sus cuentas semilla, que emitieron esta sesión
+    return !(s.expiresAt && s.expiresAt < Date.now());
   }
 
   function toLogin() {
@@ -54,10 +51,10 @@
 
   if (integrated && !session) { toLogin(); return; }
 
-  // Si la sesión se cierra o se revoca en otra pestaña, esta también sale.
+  // Si la sesión se cierra en otra pestaña, esta también sale.
   window.addEventListener('storage', function (e) {
     if (!integrated) return;
-    if (e.key === KEYS.session || e.key === KEYS.users || e.key === null) {
+    if (e.key === KEYS.session || e.key === null) {
       if (!isAuthorized(read(KEYS.session))) toLogin();
     }
   });
