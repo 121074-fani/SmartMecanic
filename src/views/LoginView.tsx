@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { AlertTriangle, ArrowRight, Bus, CheckCircle2, Eye, EyeOff, KeyRound, Lock, Mail, Moon, ShieldCheck, Sun, Zap } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Bus, CheckCircle2, Eye, EyeOff, KeyRound, LayoutDashboard, Lock, Mail, Moon, ShieldCheck, Sun, Wrench, Zap } from 'lucide-react';
 import {
   DEMO_PASSWORD,
   isValidEmail,
@@ -10,12 +10,32 @@ import {
   today,
   type Session,
 } from '../lib/auth';
+import { SEED_TECNICOS } from '../services/authService';
 import { useTheme } from '../lib/theme';
 
 type Notice = { kind: 'error' | 'unauthorized' | 'requested'; text: string } | null;
 
-export default function LoginView({ onLogin }: { onLogin: (s: Session) => void }) {
+/** Los dos menús a los que da acceso el login único. */
+export type Portal = 'tecnico' | 'supervision';
+
+const PORTALS: Record<Portal, { label: string; hint: string; icon: typeof Wrench; demo: string[] }> = {
+  tecnico: {
+    label: 'Técnico',
+    hint: 'Entrenamiento, práctica en 3D y evaluaciones.',
+    icon: Wrench,
+    demo: SEED_TECNICOS.map((t) => t.email),
+  },
+  supervision: {
+    label: 'Supervisor',
+    hint: 'Portal gerencial: equipo, retención e ingesta de manuales.',
+    icon: LayoutDashboard,
+    demo: ['supervisor@fleetacademy.mx', 'gerencia@fleetacademy.mx'],
+  },
+};
+
+export default function LoginView({ onLogin, defaultPortal = 'supervision' }: { onLogin: (s: Session) => void; defaultPortal?: Portal }) {
   const { theme, toggle } = useTheme();
+  const [portal, setPortal] = useState<Portal>(defaultPortal);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
@@ -37,6 +57,14 @@ export default function LoginView({ onLogin }: { onLogin: (s: Session) => void }
       });
     }
     if (password !== DEMO_PASSWORD) return setNotice({ kind: 'error', text: 'Contraseña incorrecta.' });
+    const isTecnico = user.role === 'Técnico';
+    if (isTecnico !== (portal === 'tecnico'))
+      return setNotice({
+        kind: 'error',
+        text: isTecnico
+          ? 'Esta es una cuenta de técnico: elige la opción «Técnico» para entrar.'
+          : 'Esta cuenta es de supervisión: elige la opción «Supervisor» para entrar.',
+      });
     setLoading(true);
     window.setTimeout(() => onLogin({ email: user.email, name: user.name, role: user.role }), 500);
   };
@@ -93,7 +121,32 @@ export default function LoginView({ onLogin }: { onLogin: (s: Session) => void }
           <h2 className="text-2xl font-semibold tracking-tight text-fg">Iniciar sesión</h2>
           <p className="mt-1 text-sm text-slate-400">Acceso restringido a correos autorizados por un supervisor.</p>
 
-          <form onSubmit={submit} className="mt-6 space-y-4">
+          <div role="tablist" aria-label="Tipo de acceso" className="mt-6 grid grid-cols-2 gap-1 rounded-xl border border-base-600 bg-base-900 p-1">
+            {(Object.keys(PORTALS) as Portal[]).map((p) => {
+              const { label, icon: Icon } = PORTALS[p];
+              const active = portal === p;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => {
+                    setPortal(p);
+                    setNotice(null);
+                  }}
+                  className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    active ? 'bg-petrol-600 text-white shadow' : 'text-slate-400 hover:bg-base-800 hover:text-slate-200'
+                  }`}
+                >
+                  <Icon size={15} /> {label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">{PORTALS[portal].hint}</p>
+
+          <form onSubmit={submit} className="mt-5 space-y-4">
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium text-slate-300">Correo corporativo</span>
               <div className="relative">
@@ -156,9 +209,21 @@ export default function LoginView({ onLogin }: { onLogin: (s: Session) => void }
           </form>
 
           <div className="mt-8 rounded-lg border border-dashed border-base-600 p-3 text-[11px] text-slate-400">
-            <p className="font-semibold text-slate-300">Credenciales de la demo</p>
-            <p className="mt-1 font-mono">supervisor@fleetacademy.mx</p>
-            <p className="font-mono">gerencia@fleetacademy.mx</p>
+            <p className="font-semibold text-slate-300">Credenciales de la demo · {PORTALS[portal].label}</p>
+            {PORTALS[portal].demo.map((e, i) => (
+              <button
+                key={e}
+                type="button"
+                onClick={() => {
+                  setEmail(e);
+                  setNotice(null);
+                }}
+                className={`block font-mono hover:text-slate-200 ${i === 0 ? 'mt-1' : ''}`}
+                title="Usar este correo"
+              >
+                {e}
+              </button>
+            ))}
             <p className="mt-1">
               Contraseña: <span className="font-mono text-slate-200">{DEMO_PASSWORD}</span>
             </p>

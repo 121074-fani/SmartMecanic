@@ -155,7 +155,7 @@ export default function App() {
     setFocusTechId(null);
   };
 
-  if (!session || tecnicoMode) return <LoginView onLogin={login} />;
+  if (!session || tecnicoMode) return <LoginView onLogin={login} defaultPortal={tecnicoMode ? 'tecnico' : 'supervision'} />;
 
   return (
     <div className="flex min-h-screen">
