@@ -98,7 +98,7 @@ const E3D = (() => {
     if (rTop) { arc(y1 - rTop, z1 - rTop, rTop, 0, Math.PI / 2); arc(y1 - rTop, z0 + rTop, rTop, Math.PI / 2, Math.PI); } else { P.push([y1, z1], [y1, z0]); }
     return P;
   }
-  const withFx = fn => o => Object.assign(fn(o), { gloss: o.gloss || 0, emit: !!o.emit, soft: !!o.soft });
+  const withFx = fn => o => Object.assign(fn(o), { gloss: o.gloss || 0, emit: !!o.emit, soft: !!o.soft, full: !!o.full });
   const box = withFx(_box), cylinder = withFx(_cylinder), hexa = withFx(_hexa), extrude = withFx(_extrude);
 
   class Scene {
@@ -128,6 +128,9 @@ const E3D = (() => {
       this.onPick = null;
       this.drawn = [];
       this.running = true;
+      // límites de la carrocería (cambian con el largo/alto de cada modelo)
+      this.body = opts.body || { hx: 6, cy: 1.85, hy: 1.35, hz: 1.25, top: 3.2 };
+      if (opts.manual) { this.dpr = 1; return; }   // modo manual: sin ciclo de animación (miniaturas)
       this._bind();
       this._resize();
       this._ro = new ResizeObserver(() => this._resize());
@@ -135,7 +138,8 @@ const E3D = (() => {
       const loop = (t) => { if (!this.running) return; this.render(t); this._raf = requestAnimationFrame(loop); };
       this._raf = requestAnimationFrame(loop);
     }
-    destroy() { this.running = false; cancelAnimationFrame(this._raf); this._ro.disconnect(); }
+    destroy() { this.running = false; cancelAnimationFrame(this._raf); this._ro && this._ro.disconnect(); }
+    snapshot() { this.render(0); return this.canvas.toDataURL('image/png'); }
     setMeshes(m) { this.meshes = m; }
     _resize() {
       const r = this.canvas.getBoundingClientRect();
@@ -302,7 +306,7 @@ const E3D = (() => {
       for (const m of this.meshes) {
         let alpha = m.alpha;
         // con carrocería opaca, las piezas internas no se dibujan (evita que "atraviesen" la carrocería)
-        if (this.hideInternal && !this.xray && m.kind === 'part' && Math.abs(m.center[0]) < 5.95 && m.center[1] < 3.2 && Math.abs(m.center[2]) < 1.24 && m.id !== this.highlight && m.id !== this.selected && m.id !== this.hint && !(pstOf(this, m.id))) continue;
+        if (this.hideInternal && !this.xray && m.kind === 'part' && Math.abs(m.center[0]) < this.body.hx - 0.05 && m.center[1] < this.body.top && Math.abs(m.center[2]) < this.body.hz - 0.01 && m.id !== this.highlight && m.id !== this.selected && m.id !== this.hint && !(pstOf(this, m.id))) continue;
         if (this.xray && (m.kind === 'body' || m.kind === 'deco' || m.kind === 'trim')) alpha = m.kind === 'body' ? 0.12 : 0.18;
         const pst = this.parts[m.id];
         const off = pst ? pst.cur : null;
@@ -314,10 +318,10 @@ const E3D = (() => {
         // ventanas, puertas y franjas están sobre la superficie: se dibujan después de la carrocería
         const layer = (this.hideInternal && m.kind === 'deco' && m.id !== 'wheel' && m.id !== 'hub' && !this.xray) ? 1 : 0;
         // equipo montado sobre el techo: se dibuja después de la carrocería
-        const roofTop = this.hideInternal && !this.xray && (m.kind === 'part' || m.kind === 'trim') && m.center[1] > 3.3 ? 1 : 0;
+        const roofTop = this.hideInternal && !this.xray && (m.kind === 'part' || m.kind === 'trim') && m.center[1] > this.body.top + 0.1 ? 1 : 0;
         let out = null;
         if (layer) {
-          const d = sub(m.center, [0, 1.85, 0]), sc = [d[0] / 6, d[1] / 1.35, d[2] / 1.25];
+          const B = this.body, d = sub(m.center, [0, B.cy, 0]), sc = [d[0] / B.hx, d[1] / B.hy, d[2] / B.hz];
           const ax = sc.map(Math.abs).indexOf(Math.max(...sc.map(Math.abs)));
           out = { ax, sg: Math.sign(sc[ax]) };
         }
@@ -329,7 +333,7 @@ const E3D = (() => {
           const fc = off ? [m.fcenters[fi][0] + off[0], m.fcenters[fi][1] + off[1], m.fcenters[fi][2] + off[2]] : m.fcenters[fi];
           const toCam = sub(cam.pos, fc);
           if (dot(n, toCam) <= 0) continue;
-          if (layer && n[out.ax] * out.sg < 0.9) continue; // solo la cara exterior de un detalle de superficie
+          if (layer && !m.full && n[out.ax] * out.sg < 0.9) continue; // solo la cara exterior de un detalle de superficie
           let depth = pts.reduce((s, p) => s + p[2], 0) / pts.length;
           let shade = m.emit ? 1.08 : 0.58 + 0.4 * Math.max(0, dot(n, LIGHT)) + 0.1 * Math.max(0, dot(n, FILL)) + 0.05 * Math.max(0, n[1]);
           let [r, g, b] = m.rgb;
@@ -464,37 +468,151 @@ const E3D = (() => {
       M.push(cylinder({ id: 'hub', pos: [x, 0.5, z + sz * 0.18], radius: 0.31, length: 0.03, axis: 'z', segs: 20, color: '#d1d5db', kind: 'deco', gloss: 0.8, soft: true }));
       M.push(cylinder({ id: 'hub', pos: [x, 0.5, z + sz * 0.205], radius: 0.12, length: 0.03, axis: 'z', segs: 12, color: '#6b7280', kind: 'deco', gloss: 0.6 }));
     });
-    // comunes
-    M.push(box({ id: 'gateway', pos: [5.2, 2.95, -0.3], size: [0.55, 0.22, 0.5], color: '#eab308' }));
-    M.push(box({ id: 'bateria_24', pos: [4.6, 0.95, -0.75], size: [0.7, 0.42, 0.8], color: '#64748b' }));
-    M.push(box({ id: 'can', pos: [0, 2.9, -1.02], size: [10.6, 0.06, 0.06], color: '#84cc16' }));
+    /* ---------- Componentes detallados (varias piezas comparten el mismo id: se seleccionan juntas) ---------- */
+    const P = (id, pos, size, color, o = {}) => M.push(box({ id, pos, size, color, ...o }));
+    const PC = (id, pos, radius, length, axis, color, o = {}) => M.push(cylinder({ id, pos, radius, length, axis, color, segs: o.segs || 16, ...o }));
+    const fins = (id, x, y, z, n, along, len, h, gap, color) => { for (let k = 0; k < n; k++) { const d = (k - (n - 1) / 2) * gap; P(id, along === 'z' ? [x, y, z + d] : [x + d, y, z], along === 'z' ? [len, h, 0.025] : [0.025, h, len], color, { gloss: 0.5 }); } };
+
+    // comunes: gateway telemático, baterías de 24 V y red CAN
+    P('gateway', [5.2, 2.93, -0.3], [0.5, 0.12, 0.4], '#1f2937', { gloss: 0.5 });
+    P('gateway', [5.2, 3.0, -0.3], [0.42, 0.03, 0.32], '#374151');
+    PC('gateway', [5.38, 3.14, -0.42], 0.015, 0.3, 'y', '#111827', { segs: 6 });
+    P('gateway', [5.0, 2.95, -0.1], [0.04, 0.03, 0.03], '#22c55e', { emit: true });
+    [4.43, 4.77].forEach(x => {
+      P('bateria_24', [x, 0.95, -0.75], [0.32, 0.42, 0.75], '#111827', { gloss: 0.4 });
+      P('bateria_24', [x, 1.0, -0.37], [0.24, 0.12, 0.01], '#f5821f');
+      PC('bateria_24', [x, 1.2, -0.95], 0.04, 0.08, 'y', '#dc2626', { segs: 8 });
+      PC('bateria_24', [x, 1.2, -0.55], 0.04, 0.08, 'y', '#0b0f17', { segs: 8 });
+    });
+    PC('can', [0, 2.9, -1.02], 0.022, 10.6, 'x', '#84cc16', { segs: 6 });
+    PC('can', [0, 2.9, -0.98], 0.022, 10.6, 'x', '#facc15', { segs: 6 });
 
     if (mode === 'ev') {
-      M.push(box({ id: 'bateria_av', pos: [-0.3, 3.52, 0], size: [5.2, 0.42, 1.7], color: '#2f62c9', gloss: 0.4 }));
-      M.push(box({ id: 'compresor_ac', pos: [-4.4, 3.48, 0], size: [1.4, 0.36, 1.5], color: '#0891b2', gloss: 0.4 }));
-      M.push(box({ id: 'cable_ac', pos: [-3.25, 3.36, 0.78], size: [0.9, 0.08, 0.08], color: '#f97316' }));
-      M.push(box({ id: 'bateria_av2', pos: [-5.0, 1.3, 0], size: [1.4, 1.2, 2.0], color: '#1d4ed8' }));
-      M.push(box({ id: 'msd', pos: [-4.15, 1.05, -0.95], size: [0.3, 0.3, 0.3], color: '#dc2626' }));
-      M.push(box({ id: 'inversor', pos: [-3.0, 0.95, 0.3], size: [1.0, 0.5, 0.9], color: '#8b5cf6' }));
-      M.push(cylinder({ id: 'motor_e', pos: [-2.0, 0.7, -0.2], radius: 0.38, length: 1.1, axis: 'x', color: '#10b981' }));
-      M.push(box({ id: 'dcdc', pos: [-4.2, 2.0, 0.65], size: [0.6, 0.45, 0.6], color: '#ec4899' }));
-      M.push(box({ id: 'puerto_carga', pos: [3.0, 1.55, 1.28], size: [0.45, 0.45, 0.05], color: '#22c55e' }));
-      M.push(box({ id: 'enfriamiento', pos: [-5.82, 2.25, 0], size: [0.28, 1.0, 1.8], color: '#0ea5e9' }));
-      M.push(box({ id: 'cable_av', pos: [-5.55, 2.3, 0.95], size: [0.08, 2.2, 0.08], color: '#f97316' }));
-      M.push(box({ id: 'cable_av', pos: [-3.9, 0.82, 0.95], size: [3.2, 0.08, 0.08], color: '#f97316' }));
+      // paquete de baterías del techo: charola, 3 módulos con nervaduras, conectores AV y etiqueta
+      P('bateria_av', [-0.3, 3.36, 0], [5.3, 0.08, 1.8], '#475569', { gloss: 0.3 });
+      [-2.0, -0.3, 1.4].forEach(x => {
+        P('bateria_av', [x, 3.56, 0], [1.6, 0.32, 1.6], '#1e3a5f', { gloss: 0.55 });
+        for (let k = -2; k <= 2; k++) P('bateria_av', [x, 3.73, k * 0.3], [1.5, 0.025, 0.06], '#2c5282');
+        P('bateria_av', [x + 0.82, 3.55, 0.55], [0.08, 0.14, 0.2], '#f97316');
+      });
+      P('bateria_av', [-0.3, 3.56, 0.805], [0.55, 0.13, 0.01], '#facc15');
+      // compresor de A/C del techo con ventiladores
+      P('compresor_ac', [-4.4, 3.47, 0], [1.4, 0.32, 1.5], '#d1d5db', { gloss: 0.45 });
+      [-0.38, 0.38].forEach(z => { PC('compresor_ac', [-4.4, 3.64, z], 0.3, 0.02, 'y', '#1f2937', { segs: 20 }); PC('compresor_ac', [-4.4, 3.66, z], 0.08, 0.02, 'y', '#6b7280', { segs: 10 }); });
+      PC('cable_ac', [-3.25, 3.36, 0.78], 0.04, 0.9, 'x', '#f97316', { segs: 10 });
+      P('cable_ac', [-2.78, 3.36, 0.78], [0.1, 0.1, 0.1], '#c2410c');
+      // batería trasera: carcasa con rejillas, etiqueta y conector
+      P('bateria_av2', [-5.0, 1.3, 0], [1.4, 1.2, 2.0], '#334155', { gloss: 0.4 });
+      for (let k = 0; k < 5; k++) P('bateria_av2', [-4.29, 1.0 + k * 0.14, 0], [0.01, 0.05, 1.6], '#1f2937');
+      P('bateria_av2', [-4.29, 1.72, 0.55], [0.01, 0.16, 0.5], '#facc15');
+      P('bateria_av2', [-4.28, 1.62, -0.7], [0.06, 0.14, 0.18], '#f97316');
+      // MSD: base gris con manija naranja
+      P('msd', [-4.15, 1.0, -0.95], [0.3, 0.22, 0.3], '#374151', { gloss: 0.3 });
+      P('msd', [-4.15, 1.17, -0.95], [0.09, 0.14, 0.26], '#f97316', { gloss: 0.5 });
+      P('msd', [-3.99, 1.0, -0.95], [0.01, 0.1, 0.18], '#facc15');
+      // inversor: carcasa de aluminio con aletas, conectores AV y puertos de refrigerante
+      P('inversor', [-3.0, 0.92, 0.3], [1.0, 0.44, 0.9], '#9aa6b5', { gloss: 0.7 });
+      fins('inversor', -3.0, 1.18, 0.3, 7, 'z', 0.92, 0.08, 0.12, '#b8c2ce');
+      [0.08, 0.3, 0.52].forEach(z => PC('inversor', [-2.46, 0.92, z], 0.055, 0.08, 'x', '#f97316', { segs: 10 }));
+      [-3.25, -2.85].forEach(x => PC('inversor', [x, 0.8, 0.77], 0.045, 0.06, 'z', '#111827', { segs: 10 }));
+      // motor eléctrico: carcasa con anillos, tapas, flecha y caja de terminales
+      PC('motor_e', [-2.0, 0.7, -0.2], 0.36, 1.0, 'x', '#475569', { segs: 22, gloss: 0.55 });
+      for (let k = 0; k < 5; k++) PC('motor_e', [-2.38 + k * 0.19, 0.7, -0.2], 0.385, 0.04, 'x', '#334155', { segs: 22 });
+      [-2.53, -1.47].forEach(x => PC('motor_e', [x, 0.7, -0.2], 0.3, 0.06, 'x', '#1f2937', { segs: 22 }));
+      PC('motor_e', [-1.33, 0.7, -0.2], 0.07, 0.22, 'x', '#cbd5e1', { segs: 10, gloss: 0.8 });
+      P('motor_e', [-2.0, 1.1, -0.2], [0.3, 0.12, 0.26], '#f97316');
+      // convertidor DC/DC con aletas
+      P('dcdc', [-4.2, 2.0, 0.65], [0.6, 0.4, 0.6], '#9aa6b5', { gloss: 0.6 });
+      fins('dcdc', -4.2, 2.23, 0.65, 5, 'z', 0.55, 0.06, 0.11, '#b8c2ce');
+      PC('dcdc', [-3.89, 2.0, 0.55], 0.04, 0.06, 'x', '#f97316', { segs: 8 });
+      PC('dcdc', [-3.89, 2.0, 0.78], 0.035, 0.06, 'x', '#111827', { segs: 8 });
+      // puerto de carga: tapa abierta, conector con dos polos y LED
+      P('puerto_carga', [3.0, 1.55, 1.27], [0.5, 0.5, 0.03], '#111827', { gloss: 0.4 });
+      [2.9, 3.1].forEach(x => PC('puerto_carga', [x, 1.47, 1.29], 0.07, 0.03, 'z', '#374151', { segs: 14 }));
+      PC('puerto_carga', [3.0, 1.66, 1.29], 0.11, 0.03, 'z', '#374151', { segs: 16 });
+      P('puerto_carga', [3.0, 1.83, 1.29], [0.1, 0.03, 0.02], '#22c55e', { emit: true });
+      P('puerto_carga', [3.3, 1.55, 1.42], [0.03, 0.48, 0.28], '#e5e7eb', { gloss: 0.4 });
+      // sistema de enfriamiento: radiador con aletas y dos ventiladores
+      P('enfriamiento', [-5.82, 2.25, 0], [0.26, 1.0, 1.8], '#64748b', { gloss: 0.3 });
+      fins('enfriamiento', -5.96, 2.25, 0, 11, 'z', 0.02, 0.95, 0.16, '#94a3b8');
+      [-0.42, 0.42].forEach(z => PC('enfriamiento', [-5.99, 2.25, z], 0.34, 0.03, 'x', '#1f2937', { segs: 20 }));
+      // cableado de alto voltaje redondo (naranja)
+      PC('cable_av', [-5.55, 2.3, 0.95], 0.045, 2.2, 'y', '#f97316', { segs: 10 });
+      PC('cable_av', [-3.9, 0.82, 0.95], 0.045, 3.2, 'x', '#f97316', { segs: 10 });
     } else {
-      M.push(box({ id: 'motor_d', pos: [-4.8, 1.35, 0], size: [1.8, 1.3, 1.7], color: '#6b7280' }));
-      M.push(cylinder({ id: 'turbo', pos: [-3.85, 2.15, 0.55], radius: 0.26, length: 0.38, axis: 'z', color: '#f97316' }));
-      M.push(cylinder({ id: 'manguera_ic', pos: [-4.75, 2.35, 0.55], radius: 0.09, length: 1.5, axis: 'x', segs: 10, color: '#111827' }));
-      M.push(box({ id: 'intercooler', pos: [-5.82, 2.25, 0], size: [0.28, 1.0, 1.85], color: '#38bdf8' }));
-      M.push(cylinder({ id: 'postrat', pos: [-1.6, 0.78, 0.65], radius: 0.32, length: 1.7, axis: 'x', color: '#a3a3a3' }));
-      M.push(box({ id: 'tanque_adblue', pos: [0.5, 0.8, 0.85], size: [0.6, 0.45, 0.45], color: '#60a5fa' }));
-      M.push(box({ id: 'tanque_comb', pos: [1.6, 0.8, -0.75], size: [1.7, 0.5, 0.7], color: '#475569' }));
-      M.push(box({ id: 'ecu_motor', pos: [-3.7, 2.4, -0.6], size: [0.45, 0.16, 0.35], color: '#eab308' }));
-      M.push(cylinder({ id: 'escape', pos: [-5.7, 3.35, -0.8], radius: 0.1, length: 0.6, axis: 'y', segs: 8, color: '#52525b', kind: 'deco' }));
+      // motor diésel: bloque, culata, tapa de punterías, cárter, poleas y múltiple de escape
+      P('motor_d', [-4.8, 1.15, 0], [1.7, 0.9, 1.4], '#64748b', { gloss: 0.4 });
+      P('motor_d', [-4.8, 1.72, 0], [1.6, 0.25, 1.2], '#94a3b8', { gloss: 0.4 });
+      P('motor_d', [-4.8, 1.92, 0], [1.5, 0.15, 0.9], '#0b2d52', { gloss: 0.6 });
+      P('motor_d', [-4.8, 0.62, 0], [1.5, 0.18, 1.1], '#374151');
+      PC('motor_d', [-3.92, 0.98, 0], 0.28, 0.06, 'x', '#111827', { segs: 20 });
+      PC('motor_d', [-3.92, 1.45, 0.3], 0.16, 0.06, 'x', '#1f2937', { segs: 16 });
+      P('motor_d', [-4.8, 1.42, 0.73], [1.4, 0.14, 0.08], '#9a3412', { gloss: 0.2 });
+      // turbo: caracol del compresor (claro) y de la turbina (acero caliente)
+      PC('turbo', [-3.85, 2.15, 0.45], 0.24, 0.2, 'z', '#d1d5db', { segs: 20, gloss: 0.7 });
+      PC('turbo', [-3.85, 2.15, 0.67], 0.26, 0.2, 'z', '#b45309', { segs: 20, gloss: 0.4 });
+      PC('turbo', [-3.85, 2.15, 0.56], 0.11, 0.06, 'z', '#6b7280', { segs: 12 });
+      // manguera del intercooler con abrazaderas
+      PC('manguera_ic', [-4.75, 2.35, 0.55], 0.09, 1.5, 'x', '#111827', { segs: 14, gloss: 0.3 });
+      [-5.42, -4.08].forEach(x => PC('manguera_ic', [x, 2.35, 0.55], 0.105, 0.04, 'x', '#cbd5e1', { segs: 14, gloss: 0.8 }));
+      // intercooler / radiador: núcleo con aletas y tanques laterales
+      P('intercooler', [-5.82, 2.25, 0], [0.26, 0.9, 1.7], '#475569');
+      fins('intercooler', -5.96, 2.25, 0, 12, 'z', 0.02, 0.86, 0.13, '#94a3b8');
+      [-0.9, 0.9].forEach(z => P('intercooler', [-5.82, 2.25, z], [0.3, 1.0, 0.1], '#1f2937'));
+      // postratamiento DPF + SCR: cuerpo brillante, conos, bandas y tubos
+      PC('postrat', [-1.6, 0.78, 0.65], 0.32, 1.3, 'x', '#d1d5db', { segs: 22, gloss: 0.7 });
+      [-2.35, -0.85].forEach(x => PC('postrat', [x, 0.78, 0.65], 0.22, 0.2, 'x', '#9ca3af', { segs: 18 }));
+      [-2.0, -1.6, -1.2].forEach(x => PC('postrat', [x, 0.78, 0.65], 0.335, 0.05, 'x', '#6b7280', { segs: 22 }));
+      [-2.6, -0.6].forEach(x => PC('postrat', [x, 0.78, 0.65], 0.07, 0.3, 'x', '#78716c', { segs: 10 }));
+      // tanque de AdBlue (tapa azul) y tanque de combustible con cinchos
+      P('tanque_adblue', [0.5, 0.8, 0.85], [0.6, 0.45, 0.45], '#f1f5f9', { gloss: 0.4 });
+      PC('tanque_adblue', [0.5, 1.06, 0.85], 0.07, 0.06, 'y', '#2563eb', { segs: 12 });
+      P('tanque_comb', [1.6, 0.8, -0.75], [1.7, 0.5, 0.7], '#475569', { gloss: 0.55 });
+      [1.1, 2.1].forEach(x => P('tanque_comb', [x, 0.8, -0.75], [0.05, 0.53, 0.73], '#1f2937'));
+      PC('tanque_comb', [2.2, 1.08, -0.75], 0.07, 0.06, 'y', '#111827', { segs: 12 });
+      // ECU de motor: carcasa de aluminio con aletas y conectores
+      P('ecu_motor', [-3.7, 2.4, -0.6], [0.45, 0.12, 0.35], '#9aa6b5', { gloss: 0.6 });
+      fins('ecu_motor', -3.7, 2.48, -0.6, 4, 'x', 0.3, 0.04, 0.09, '#b8c2ce');
+      [-0.68, -0.52].forEach(z => P('ecu_motor', [-3.45, 2.4, z], [0.06, 0.07, 0.1], '#111827'));
+      PC('escape', [-5.7, 3.35, -0.8], 0.1, 0.6, 'y', '#52525b', { segs: 10, kind: 'deco' });
     }
     return M;
   }
 
-  return { Scene, box, cylinder, hexa, extrude, roundedProfile, buildBus };
+  /* ---------- Variantes de modelo: largo, alto, librea y ejes extra ---------- */
+  function buildModel(model, modeOverride) {
+    const mode = modeOverride || (model.power === 'electrico' ? 'ev' : 'diesel');
+    let M = buildBus(mode);
+    const k = model.len / 12, ky = model.style === 'coach' ? 1.14 : 1;
+    if (model.style === 'coach') M = M.filter(m => m.id !== 'door2');
+    if (model.power === 'hibrido' && !modeOverride) M.push(box({ id: 'bateria_av', pos: [1.0, 3.42, 0], size: [2.6, 0.24, 1.4], color: '#1e3a5f', gloss: 0.5 }));
+    M = M.map(m => {
+      const wheel = m.id === 'wheel' || m.id === 'hub', cx = m.center[0];
+      const out = { ...m, verts: m.verts.map(v => wheel ? [v[0] + cx * (k - 1), v[1], v[2]] : [v[0] * k, v[1] * ky, v[2]]) };
+      if (model.accent && (m.id === 'stripe' || m.id === 'stripe2' || m.id === 'logo')) out.color = model.accent;
+      if (model.skirt && m.id === 'skirt') out.color = model.skirt;
+      if (model.body && m.id === 'body') out.color = model.body;
+      return finalize(out);
+    });
+    const wheelSet = x => [-1.05, 1.05].forEach(z => {
+      const sz = Math.sign(z);
+      M.push(cylinder({ id: 'wheel', pos: [x, 0.5, z], radius: 0.5, length: 0.34, axis: 'z', segs: 24, color: '#1b1f27', kind: 'deco', soft: true }));
+      M.push(cylinder({ id: 'hub', pos: [x, 0.5, z + sz * 0.18], radius: 0.31, length: 0.03, axis: 'z', segs: 20, color: '#d1d5db', kind: 'deco', gloss: 0.8, soft: true }));
+      M.push(box({ id: 'arch', pos: [x, 0.72 * ky, z * 1.205], size: [1.44, 0.42 * ky, 0.03], color: '#0b1220', kind: 'deco' }));
+    });
+    if (model.style === 'artic') {
+      wheelSet(0.2 * k);                                                   // eje central
+      // fuelle de la articulación (acordeón)
+      M.push(box({ id: 'bellows', pos: [1.6 * k, 1.9, 0], size: [0.6, 2.8, 2.6], color: '#111827', kind: 'deco', full: true }));
+      for (let i = 0; i < 6; i++) M.push(box({ id: 'bellows', pos: [1.6 * k - 0.25 + i * 0.1, 1.9, 0], size: [0.035, 2.84, 2.64], color: '#374151', kind: 'deco', full: true }));
+    }
+    if (model.tagAxle) wheelSet(-3.4 * k - 1.25);                         // eje de apoyo trasero
+    if (model.style === 'coach') {                                         // compuertas de equipaje
+      [-1.268, 1.268].forEach(z => { for (let i = 0; i < 4; i++) M.push(box({ id: 'bay', pos: [-2.4 * k + i * 1.35 * k * 0.62 + 0.6, 0.98, z], size: [0.03, 0.55, 0.03], color: '#94a3b8', kind: 'deco' })); });
+    }
+    const body = { hx: 6 * k, cy: 1.85 * ky, hy: 1.35 * ky, hz: 1.25, top: 3.2 * ky };
+    return { meshes: M, body, shadow: [-6.3 * k, 6.3 * k, -1.5, 1.5], dist: 16 + (model.len - 12) * 1.15, mode };
+  }
+
+  return { Scene, box, cylinder, hexa, extrude, roundedProfile, buildBus, buildModel };
 })();

@@ -167,7 +167,7 @@ function advanceDays(n) {
 let cleanup = [];
 const NAV_GROUP = { leccion: 'ruta', senala: 'practicar', aprende: 'practicar', taller: 'practicar', practica: 'practicar', inspeccion: 'practicar', diagnostico: 'evaluar', evaluaciones: 'evaluar', repasos: 'evaluar' };
 const SUBNAV = {
-  practicar: [['practicar', 'Todo'], ['senala', '👆 Señala la pieza'], ['aprende', '⭐ Aprende haciendo'], ['taller', '🔧 Taller'], ['practica', '🛠️ Fallas'], ['inspeccion', '🚌 Modelo 3D']],
+  practicar: [['practicar', '🚌 Autobús y módulos'], ['senala', '👆 Señala la pieza'], ['aprende', '⭐ Aprende haciendo'], ['taller', '🔧 Taller'], ['practica', '🛠️ Fallas'], ['inspeccion', '🚌 Modelo 3D']],
   evaluar: [['diagnostico', '🎯 Diagnóstico'], ['evaluaciones', '📝 Antes · después · diferida'], ['repasos', '🔁 Repasos']],
 };
 const ROUTES = {
@@ -595,7 +595,8 @@ function viewerTools() {
 }
 function mountScene(canvas, mode, onPick) {
   const scene = new E3D.Scene(canvas, { xray: true });
-  scene.setMeshes(E3D.buildBus(mode));
+  const model = currentModel();
+  if (model) applyModelToScene(scene, model, mode); else scene.setMeshes(E3D.buildBus(mode));
   scene.labels = Object.fromEntries(Object.entries(COMPONENTS).map(([k, v]) => [k, v.name]));
   scene.onPick = onPick;
   cleanup.push(() => scene.destroy());
@@ -615,11 +616,12 @@ function mountScene(canvas, mode, onPick) {
    VISTA: Inspección 3D libre
    ========================================================= */
 function viewInspect(el) {
-  let mode = 'ev';
+  const model = currentModel();
+  let mode = model && model.power === 'diesel' ? 'diesel' : 'ev';
   el.innerHTML = `
-    <div class="page-head"><div><span class="eyebrow">Modelo 3D · realidad virtual ligera</span><h1>Inspección de componentes</h1>
-      <p class="muted">Gira, acerca y toca cualquier componente. Activa VR para usarlo con un visor de teléfono.</p></div>
-      <div class="seg" id="modeSeg"><button class="on" data-m="ev">🔋 Eléctrico</button><button data-m="diesel">⛽ Diésel</button></div></div>
+    <div class="page-head"><div><span class="eyebrow">Modelo 3D · realidad virtual ligera</span><h1>${model ? esc(model.name) : 'Inspección de componentes'}</h1>
+      <p class="muted">Gira, acerca y toca cualquier componente. Activa VR para usarlo con un visor de teléfono.${model ? ` <a href="#/practicar/elegir">Cambiar autobús</a>` : ''}</p></div>
+      <div class="seg" id="modeSeg"><button class="${mode === 'ev' ? 'on' : ''}" data-m="ev">🔋 ${model && model.power === 'hibrido' ? 'Tren eléctrico' : 'Eléctrico'}</button><button class="${mode === 'diesel' ? 'on' : ''}" data-m="diesel">⛽ ${model && model.power === 'hibrido' ? 'Motor diésel' : 'Diésel'}</button></div></div>
     <div class="sim">
       <div class="card viewer tall"><canvas id="cv"></canvas>${viewerTools()}</div>
       <div class="card panel"><div id="info"><h3>Selecciona un componente</h3><p class="muted">Toca una pieza en el modelo o en la lista: verás su función, especificaciones, fallas, seguridad, herramientas y las tareas de reparación que puedes practicar.</p></div>
@@ -661,7 +663,8 @@ function viewInspect(el) {
   $$('#modeSeg button').forEach(b => b.onclick = () => {
     mode = b.dataset.m;
     $$('#modeSeg button').forEach(x => x.classList.toggle('on', x === b));
-    scene.setMeshes(E3D.buildBus(mode)); scene.selected = scene.highlight = null; scene.target = [0, 1.5, 0];
+    if (model) applyModelToScene(scene, model, mode); else scene.setMeshes(E3D.buildBus(mode));
+    scene.selected = scene.highlight = null; scene.target = [0, 1.5, 0];
     chips();
   });
 }
@@ -894,9 +897,11 @@ function viewDashboard(el, tab = 'tecnico') {
   if (!S.tests.pre) { el.innerHTML = needPre(); return; }
   el.innerHTML = `
     <div class="page-head"><div><span class="eyebrow">Entregable 5</span><h1>Tablero de indicadores</h1></div>
-      <div class="seg"><button class="${tab !== 'supervisor' ? 'on' : ''}" onclick="go('tablero/tecnico')">👷 Técnico</button><button class="${tab === 'supervisor' ? 'on' : ''}" onclick="go('tablero/supervisor')">📋 Supervisor</button></div></div>
+      <div class="seg"><button class="${tab === 'tecnico' ? 'on' : ''}" onclick="go('tablero/tecnico')">👷 Técnico</button><button class="${tab === 'supervisor' ? 'on' : ''}" onclick="go('tablero/supervisor')">📋 Equipo</button><button class="${tab === 'errores' ? 'on' : ''}" onclick="go('tablero/errores')">❌ Errores comunes</button></div></div>
     <div id="dash"></div>`;
-  tab === 'supervisor' ? dashSupervisor($('#dash')) : dashTech($('#dash'));
+  if (tab === 'supervisor') dashSupervisor($('#dash'));
+  else if (tab === 'errores') dashErrors($('#dash'));
+  else dashTech($('#dash'));
 }
 function dashTech(el) {
   const { pre, post, delayed } = S.tests;
@@ -946,13 +951,135 @@ function teamData() {
   const t = TEAM_SEED.map(x => ({ ...x, me: false }));
   if (S.user && S.tests.pre) {
     const errs = Object.keys(S.errors);
-    t.unshift({ name: S.user.name + ' (tú)', role: S.user.role, xp: S.xp, pre: S.tests.pre.avg, post: S.tests.post?.avg ?? null, delayed: S.tests.delayed?.avg ?? null,
-      viol: [...S.practice, ...(S.procs || [])].reduce((s, p) => s + p.violations.length, 0), m: Object.fromEntries(COMP_IDS.map(c => [c, effMastery(c)])), errs, me: true });
+    // tus errores reales se suman al análisis del equipo
+    const errCounts = {};
+    ERROR_CATALOG.forEach(e => { const n = e.tags.reduce((s, tg) => s + (S.errors[tg] || 0), 0); if (n) errCounts[e.id] = n; });
+    const answers = {};
+    ['pre', 'post', 'delayed'].forEach(k => (S.tests[k]?.answers || []).forEach(a => { answers[a.id] = a.ok ? 0 : -1; }));
+    t.unshift({ name: S.user.name + ' (tú)', role: S.user.role, taller: S.user.taller || TALLERES[1], xp: S.xp, pre: S.tests.pre.avg, post: S.tests.post?.avg ?? null, delayed: S.tests.delayed?.avg ?? null,
+      viol: [...S.practice, ...(S.procs || [])].reduce((s, p) => s + p.violations.length, 0), m: Object.fromEntries(COMP_IDS.map(c => [c, effMastery(c)])), errs, errCounts, answers, stepErr: {}, me: true });
   }
   return t;
 }
+let teamFilter = { taller: '', role: '', cat: '', sel: null, proc: 'bujias', all: false };
+const filterTeam = t => t.filter(x => (!teamFilter.taller || x.taller === teamFilter.taller) && (!teamFilter.role || x.role === teamFilter.role));
+function teamFiltersHTML(withCat) {
+  return `<div class="card filters">
+    <label>Taller<select id="fTaller"><option value="">Todos los talleres</option>${TALLERES.map(t => `<option ${teamFilter.taller === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+    <label>Rol<select id="fRole"><option value="">Todos los roles</option>${Object.entries(ROLES).map(([k, r]) => `<option value="${k}" ${teamFilter.role === k ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></label>
+    ${withCat ? `<div class="catchips">${['', ...ERROR_CATS].map(c => `<button data-c="${c}" class="${teamFilter.cat === c ? 'on' : ''}">${c ? CAT_ICON[c] + ' ' + c : 'Todas'}</button>`).join('')}</div>` : ''}
+    <span class="muted small fnote">Datos simulados de ${TEAM_SEED.length} técnicos + tus resultados</span>
+  </div>`;
+}
+function bindTeamFilters(el, redraw) {
+  $('#fTaller', el).onchange = e => { teamFilter.taller = e.target.value; teamFilter.sel = null; redraw(); };
+  $('#fRole', el).onchange = e => { teamFilter.role = e.target.value; teamFilter.sel = null; redraw(); };
+  $$('.catchips button', el).forEach(b => b.onclick = () => { teamFilter.cat = b.dataset.c; teamFilter.sel = null; redraw(); });
+}
+const CAT_ICON = { Seguridad: '⚠️', Procedimiento: '🔧', 'Diagnóstico': '🔍', 'Identificación': '👆', Conocimiento: '📝' };
+const CAT_CLS = { Seguridad: 'bad', Procedimiento: 'warn', 'Diagnóstico': 'info', 'Identificación': 'ev', Conocimiento: '' };
+
+/* ---------- Análisis: ¿en qué se equivoca más la gente? ---------- */
+function teamErrorStats(team) {
+  const n = team.length || 1;
+  const rows = ERROR_CATALOG.map(e => {
+    const who = team.filter(t => (t.errCounts || {})[e.id]);
+    const times = who.reduce((s, t) => s + t.errCounts[e.id], 0);
+    const rec = who.filter(t => t.errCounts[e.id] >= 2).length;
+    const byTaller = TALLERES.map(tl => { const g = team.filter(t => t.taller === tl); return { tl, pct: g.length ? round(g.filter(t => (t.errCounts || {})[e.id]).length / g.length * 100) : null }; });
+    const byRole = Object.keys(ROLES).map(r => { const g = team.filter(t => t.role === r); return { r, pct: g.length ? round(g.filter(t => (t.errCounts || {})[e.id]).length / g.length * 100) : null }; });
+    return { ...e, who: who.length, pct: round(who.length / n * 100), times, avgTimes: who.length ? (times / who.length).toFixed(1) : '0', recPct: who.length ? round(rec / who.length * 100) : 0, byTaller, byRole, me: team.some(t => t.me && (t.errCounts || {})[e.id]) };
+  }).sort((a, b) => b.pct - a.pct || b.times - a.times);
+  const questions = QUESTIONS.map(q => {
+    const ans = team.map(t => (t.answers || {})[q.id]).filter(v => v !== undefined);
+    const wrong = ans.filter(v => v !== 0);
+    const opts = [1, 2, 3].map(k => wrong.filter(v => v === k).length);
+    const top = opts.indexOf(Math.max(...opts)) + 1;
+    return { q, pct: ans.length ? round(wrong.length / ans.length * 100) : 0, n: ans.length, topWrong: q.o[top], topWrongPct: wrong.length ? round(Math.max(...opts) / wrong.length * 100) : 0 };
+  }).sort((a, b) => b.pct - a.pct);
+  const procs = TEAM_PROCESSES.map(p => {
+    const names = p.steps();
+    const g = team.filter(t => t.stepErr && t.stepErr[p.id]);
+    const steps = names.map((nm, k) => ({ nm, pct: g.length ? round(g.filter(t => t.stepErr[p.id][k]).length / g.length * 100) : 0 }));
+    return { ...p, steps };
+  });
+  return { rows, questions, procs };
+}
+function dashErrors(el) {
+  const draw = () => {
+    const team = filterTeam(teamData());
+    const { rows, questions, procs } = teamErrorStats(team);
+    const shown = rows.filter(r => !teamFilter.cat || r.cat === teamFilter.cat);
+    const sel = rows.find(r => r.id === teamFilter.sel) || shown[0] || rows[0];
+    const n = team.length;
+    const withViol = team.filter(t => ERROR_CATALOG.some(e => e.safety && (t.errCounts || {})[e.id])).length;
+    const topSafety = rows.find(r => r.safety);
+    const topId = rows.find(r => r.cat === 'Identificación');
+    const topQ = questions[0];
+    const worstTaller = topSafety ? [...topSafety.byTaller].filter(x => x.pct != null).sort((a, b) => b.pct - a.pct)[0] : null;
+    const totalErr = team.reduce((s, t) => s + Object.values(t.errCounts || {}).reduce((a, b) => a + b, 0), 0);
+    const proc = procs.find(p => p.id === teamFilter.proc) || procs[0];
+    const maxStep = Math.max(...proc.steps.map(s => s.pct));
+    const bar = (pct, cls = '') => `<div class="ebar"><i class="${cls}" style="width:${Math.max(2, pct)}%"></i></div>`;
+    el.innerHTML = `
+      ${teamFiltersHTML(true)}
+      <div class="kpis">
+        ${kpi('Técnicos analizados', n, teamFilter.taller || 'todos los talleres')}
+        ${kpi('Errores registrados', totalErr, `${(totalErr / (n || 1)).toFixed(1)} por técnico`)}
+        ${kpi('Error más común', (rows[0]?.pct ?? 0) + '%', 'de los técnicos lo cometió', 'warn')}
+        ${kpi('Con violación de seguridad', round(withViol / (n || 1) * 100) + '%', `${withViol} técnicos`, withViol ? 'bad' : 'ok')}
+      </div>
+      <div class="card insights"><h3>💡 Lo que dicen los datos</h3><ul>
+        ${rows[0] ? `<li><b>El error más frecuente</b> es «${esc(rows[0].label)}»: lo cometió el <b>${rows[0].pct}%</b> de los técnicos, y el ${rows[0].recPct}% de ellos lo repitió.</li>` : ''}
+        ${topSafety && topSafety.pct ? `<li class="bad"><b>La falla de seguridad más común</b> es «${esc(topSafety.label)}» (<b>${topSafety.pct}%</b>)${worstTaller && !teamFilter.taller ? `, sobre todo en <b>${esc(worstTaller.tl)}</b> (${worstTaller.pct}%)` : ''}.</li>` : ''}
+        ${topId && topId.pct ? `<li><b>La pieza que más se confunde:</b> buscaban «${esc(topId.pair[0])}» y tocaron «${esc(topId.pair[1])}» (<b>${topId.pct}%</b>).</li>` : ''}
+        ${topQ ? `<li><b>La pregunta más fallada</b> (${topQ.pct}%): «${esc(topQ.q.q)}». La respuesta equivocada más elegida fue «${esc(topQ.topWrong)}».</li>` : ''}
+        ${rows[0] ? `<li class="act">🎯 <b>Acción sugerida:</b> ${esc(rows[0].action.text)}.</li>` : ''}
+      </ul></div>
+      <div class="grid g-2-1">
+        <div class="card"><h3>¿En qué se equivoca más la gente?</h3><p class="muted small">% de técnicos que cometieron el error al menos una vez. Toca uno para ver el detalle.</p>
+          <ol class="erank">${shown.map((r, i) => `<li data-id="${r.id}" class="${r.id === sel.id ? 'on' : ''}">
+            <span class="er-n">${i + 1}</span>
+            <div class="er-main"><div class="er-top"><b>${esc(r.label)}</b>${r.me ? '<span class="tag info">también tú</span>' : ''}</div>
+              <div class="er-bar">${bar(r.pct, r.safety ? 'bad' : '')}<span>${r.pct}%</span></div>
+              <small><span class="tag ${CAT_CLS[r.cat]}">${CAT_ICON[r.cat]} ${r.cat}</span> ${r.who} técnicos · ${r.times} veces</small></div>
+          </li>`).join('')}</ol></div>
+        <div class="card errdetail">${sel ? `
+          <span class="tag ${CAT_CLS[sel.cat]}">${CAT_ICON[sel.cat]} ${sel.cat}</span>
+          <h3>${esc(sel.label)}</h3>
+          <div class="ed-big"><b>${sel.pct}%</b><span>de los técnicos<br>(${sel.who} de ${n})</span></div>
+          <div class="ed-stats"><div><span>Veces en promedio</span><b>${sel.avgTimes}</b></div><div><span>Lo repitieron</span><b>${sel.recPct}%</b></div><div><span>Competencia</span><b>${comp(sel.comp).icon} ${esc(comp(sel.comp).short)}</b></div></div>
+          <p class="small"><b>📍 Dónde ocurre:</b> ${esc(sel.where)}</p>
+          ${sel.pair ? `<p class="small"><b>👆 Confusión:</b> buscaban «${esc(sel.pair[0])}» → tocaron «${esc(sel.pair[1])}»</p>` : ''}
+          <h4>Por taller</h4>${sel.byTaller.filter(x => x.pct != null).map(x => `<div class="mini"><span>${esc(x.tl.split(' · ')[0])}</span>${bar(x.pct, sel.safety ? 'bad' : '')}<b>${x.pct}%</b></div>`).join('')}
+          <h4>Por rol</h4>${sel.byRole.filter(x => x.pct != null).map(x => `<div class="mini"><span>${esc(ROLES[x.r].name.replace('Técnico de ', '').replace('Técnico ', ''))}</span>${bar(x.pct)}<b>${x.pct}%</b></div>`).join('')}
+          <div class="actionbox">🎯 <b>Acción sugerida:</b> ${esc(sel.action.text)}<button class="btn sm primary" onclick="go('${sel.action.route}')">Ir →</button></div>` : '<p class="muted">Sin datos con estos filtros.</p>'}
+        </div>
+      </div>
+      <div class="grid g-1-1">
+        <div class="card"><h3>👆 Piezas que más se confunden</h3><p class="muted small">En «Señala la pieza»: qué buscaban y qué tocaron por error.</p>
+          ${rows.filter(r => r.pair).map(r => `<div class="pairrow"><div><span class="pr-a">${esc(r.pair[0])}</span><span class="pr-arrow">→ tocaron</span><span class="pr-b">${esc(r.pair[1])}</span></div><div class="er-bar">${bar(r.pct)}<span>${r.pct}%</span></div></div>`).join('')}</div>
+        <div class="card"><h3>📝 Preguntas más falladas</h3><p class="muted small">Diagnóstico, post-test y revisión diferida.</p>
+          <ol class="qfail">${questions.slice(0, 6).map(x => `<li><div class="qf-top"><span class="tag">${comp(x.q.c).icon} ${esc(comp(x.q.c).short)}</span><b>${x.pct}% falla</b></div>
+            <p>${esc(x.q.q)}</p><small>✔ Correcta: «${esc(x.q.o[x.q.a])}» · ✘ Más elegida por error: «${esc(x.topWrong)}» (${x.topWrongPct}% de los que fallaron)</small></li>`).join('')}</ol></div>
+      </div>
+      <div class="card"><h3>📉 Paso más difícil de cada proceso</h3><p class="muted small">% de técnicos que se equivocaron en cada paso.</p>
+        <div class="catchips proc">${procs.map(p => `<button data-p="${p.id}" class="${p.id === proc.id ? 'on' : ''}">${esc(p.name)}</button>`).join('')}</div>
+        <div class="steprates">${proc.steps.map((s, k) => `<div class="sr ${s.pct === maxStep && maxStep > 0 ? 'max' : ''}"><span class="sr-n">${k + 1}</span><span class="sr-t">${esc(s.nm)}</span>${bar(s.pct, s.pct === maxStep ? 'bad' : '')}<b>${s.pct}%</b></div>`).join('')}</div></div>
+      <div class="card"><h3>🏭 Errores por taller</h3><p class="muted small">% de técnicos de cada taller con al menos un error de cada tipo.</p>
+        <div class="tscroll"><table class="tbl heat errheat"><thead><tr><th>Taller</th>${ERROR_CATS.map(c => `<th>${CAT_ICON[c]} ${c}</th>`).join('')}<th>Técnicos</th></tr></thead><tbody>
+        ${TALLERES.map(tl => { const g = teamData().filter(t => t.taller === tl && (!teamFilter.role || t.role === teamFilter.role)); return `<tr><td><b>${esc(tl)}</b></td>${ERROR_CATS.map(c => { const v = g.length ? round(g.filter(t => ERROR_CATALOG.some(e => e.cat === c && (t.errCounts || {})[e.id])).length / g.length * 100) : 0; return `<td class="hc" style="background:hsl(${Math.round(120 - v * 1.2)},65%,${v > 60 ? 40 : 36}%)">${v}%</td>`; }).join('')}<td>${g.length}</td></tr>`; }).join('')}
+        </tbody></table></div></div>`;
+    bindTeamFilters(el, draw);
+    $$('.erank li', el).forEach(li => li.onclick = () => { teamFilter.sel = li.dataset.id; draw(); if (matchMedia('(max-width: 1100px)').matches) $('.errdetail', el).scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    $$('.catchips.proc button', el).forEach(b => b.onclick = () => { teamFilter.proc = b.dataset.p; draw(); });
+  };
+  draw();
+}
 function dashSupervisor(el) {
-  const team = teamData();
+  const redraw = () => dashSupervisor(el);
+  const team = filterTeam(teamData());
+  const list = (arr, f) => arr.slice(0, 6).map(f).join(', ') + (arr.length > 6 ? ` y ${arr.length - 6} más` : '');
   const teamAvg = COMP_IDS.map(c => round(avg(team.map(t => t.m[c]))));
   const errCount = {};
   team.forEach(t => t.errs.forEach(e => errCount[e] = (errCount[e] || 0) + 1));
@@ -962,35 +1089,38 @@ function dashSupervisor(el) {
   const withViol = team.filter(t => t.viol > 0);
   const heat = v => `hsl(${Math.round(v * 1.2)}, 70%, ${v < 40 ? 38 : 34}%)`;
   el.innerHTML = `
+    ${teamFiltersHTML(false)}
     <div class="kpis">
-      ${kpi('Técnicos', team.length, 'en el grupo')}
+      ${kpi('Técnicos', team.length, teamFilter.taller || 'en todos los talleres')}
       ${kpi('Dominio del equipo', round(avg(teamAvg)), 'promedio')}
       ${kpi('Ganancia promedio', (avg(team.filter(t => t.post != null).map(t => (t.post - t.pre) / (100 - t.pre)))).toFixed(2), 'normalizada')}
       ${kpi('Retención promedio', round(avg(team.filter(t => t.delayed != null).map(t => t.delayed / t.post * 100))) + '%', 'diferida / post')}
       ${kpi('Riesgo seguridad AV', hvRisk.length, 'dominio < 60', hvRisk.length ? 'bad' : 'ok')}
     </div>
     <div class="card alerts"><h3>⚠ Alertas accionables</h3><ul>
-      ${hvRisk.length ? `<li class="bad"><b>Brecha crítica en Seguridad AV:</b> ${hvRisk.map(t => esc(t.name)).join(', ')} → bloquear prácticas AV y asignar lección obligatoria.</li>` : ''}
-      ${withViol.length ? `<li class="bad"><b>Violaciones de seguridad en simulación:</b> ${withViol.map(t => `${esc(t.name)} (${t.viol})`).join(', ')} → retroalimentación 1:1.</li>` : ''}
-      ${forget.length ? `<li class="warn"><b>Riesgo de olvido (caída ≥ 12 pts post→diferida):</b> ${forget.map(t => esc(t.name)).join(', ')} → reforzar repasos.</li>` : ''}
-      ${topErr[0] ? `<li class="warn"><b>Error más común del equipo:</b> ${esc(ERROR_LABELS[topErr[0][0]] || topErr[0][0])} (${topErr[0][1]} técnicos) → crear micro-lección / caso focalizado.</li>` : ''}
+      ${hvRisk.length ? `<li class="bad"><b>Brecha crítica en Seguridad AV:</b> ${list(hvRisk, t => esc(t.name))} → bloquear prácticas AV y asignar lección obligatoria.</li>` : ''}
+      ${withViol.length ? `<li class="bad"><b>Violaciones de seguridad en simulación:</b> ${list(withViol, t => `${esc(t.name)} (${t.viol})`)} → retroalimentación 1:1.</li>` : ''}
+      ${forget.length ? `<li class="warn"><b>Riesgo de olvido (caída ≥ 12 pts post→diferida):</b> ${list(forget, t => esc(t.name))} → reforzar repasos.</li>` : ''}
+      ${topErr[0] ? `<li class="warn"><b>Error más común del equipo:</b> ${esc(ERROR_LABELS[topErr[0][0]] || topErr[0][0])} (${topErr[0][1]} técnicos) → <a href="#/tablero/errores">ver el análisis de errores comunes</a>.</li>` : ''}
       ${S.unanswered.length ? `<li class="info"><b>Brechas de contenido:</b> ${S.unanswered.length} pregunta(s) al asistente sin fuente autorizada → enviar a especialista.</li>` : ''}
     </ul></div>
     <div class="card"><h3>Mapa de calor de competencias</h3><div class="tscroll"><table class="tbl heat">
-      <thead><tr><th>Técnico</th><th>Rol</th>${COMPETENCIAS.map(c => `<th title="${esc(c.name)}">${c.icon} ${esc(c.short)}</th>`).join('')}<th>Pre→Post→Dif.</th><th>Viol.</th><th>XP</th></tr></thead>
-      <tbody>${team.map(t => `<tr class="${t.me ? 'me' : ''}"><td><b>${esc(t.name)}</b></td><td class="small">${esc(ROLES[t.role].name)}</td>
+      <thead><tr><th>Técnico</th><th>Taller</th><th>Rol</th>${COMPETENCIAS.map(c => `<th title="${esc(c.name)}">${c.icon} ${esc(c.short)}</th>`).join('')}<th>Pre→Post→Dif.</th><th>Viol.</th><th>XP</th></tr></thead>
+      <tbody>${(teamFilter.all ? team : team.slice(0, 12)).map(t => `<tr class="${t.me ? 'me' : ''}"><td><b>${esc(t.name)}</b></td><td class="small">${esc((t.taller || '').split(' · ')[0])}</td><td class="small">${esc(ROLES[t.role].name)}</td>
         ${COMP_IDS.map(c => `<td class="hc" style="background:${heat(t.m[c])}">${t.m[c]}</td>`).join('')}
         <td class="small">${t.pre} → ${t.post ?? '—'} → ${t.delayed ?? '—'}</td><td>${t.viol ? `<span class="tag bad">${t.viol}</span>` : '0'}</td><td>${t.xp}</td></tr>`).join('')}
-      <tr class="avg"><td><b>Promedio</b></td><td></td>${teamAvg.map(v => `<td class="hc" style="background:${heat(v)}">${v}</td>`).join('')}<td></td><td></td><td></td></tr></tbody></table></div>
-      <button class="btn ghost" id="csv">⬇ Exportar CSV</button></div>
+      <tr class="avg"><td><b>Promedio</b></td><td></td><td></td>${teamAvg.map(v => `<td class="hc" style="background:${heat(v)}">${v}</td>`).join('')}<td></td><td></td><td></td></tr></tbody></table></div>
+      <div class="row">${team.length > 12 ? `<button class="btn ghost" id="allRows">${teamFilter.all ? 'Ver menos' : `Ver los ${team.length} técnicos`}</button>` : ''}<button class="btn ghost" id="csv">⬇ Exportar CSV</button></div></div>
     <div class="grid g-1-1">
       <div class="card"><h3>Perfil del equipo</h3>${Charts.radar({ size: 260, labels: COMPETENCIAS.map(c => c.short), series: [{ name: 'Promedio del equipo', values: teamAvg, color: C.team }] })}</div>
-      <div class="card"><h3>🏆 Ranking (gamificación)</h3><ol class="rank">${[...team].sort((a, b) => b.xp - a.xp).map(t => `<li class="${t.me ? 'me' : ''}"><span>${esc(t.name)}</span><b>${t.xp} XP</b></li>`).join('')}</ol>
+      <div class="card"><h3>🏆 Ranking (gamificación)</h3><ol class="rank">${[...team].sort((a, b) => b.xp - a.xp).slice(0, 10).map(t => `<li class="${t.me ? 'me' : ''}"><span>${esc(t.name)}</span><b>${t.xp} XP</b></li>`).join('')}</ol>
         <h4>Errores más frecuentes del equipo</h4><ul class="errs">${topErr.map(([k, n]) => `<li><span class="n">${n}</span>${esc(ERROR_LABELS[k] || k)}</li>`).join('')}</ul></div>
     </div>`;
+  bindTeamFilters(el, redraw);
+  const ar = $('#allRows', el); if (ar) ar.onclick = () => { teamFilter.all = !teamFilter.all; redraw(); };
   $('#csv').onclick = () => {
-    const head = ['tecnico', 'rol', ...COMP_IDS, 'pre', 'post', 'diferida', 'violaciones', 'xp'];
-    const rows = team.map(t => [t.name, ROLES[t.role].name, ...COMP_IDS.map(c => t.m[c]), t.pre, t.post ?? '', t.delayed ?? '', t.viol, t.xp]);
+    const head = ['tecnico', 'taller', 'rol', ...COMP_IDS, 'pre', 'post', 'diferida', 'violaciones', 'xp'];
+    const rows = team.map(t => [t.name, t.taller || '', ROLES[t.role].name, ...COMP_IDS.map(c => t.m[c]), t.pre, t.post ?? '', t.delayed ?? '', t.viol, t.xp]);
     download('equipo_competencias.csv', [head, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n'), 'text/csv');
   };
 }
@@ -1492,7 +1622,7 @@ function viewAprende(el, id) {
     const tabs = [['saber', '📖', '1. SABER', true], ['hacer', '🔧', '2. HACER', p.saber], ['demostrar', '🏅', '3. DEMOSTRAR', p.hacer != null]];
     el.innerHTML = `
       <div class="modhead card">
-        <button class="backbtn" onclick="go('aprende')" aria-label="Volver">←</button>
+        <button class="backbtn" onclick="go(currentModel() ? 'practicar' : 'aprende')" aria-label="Volver">←</button>
         <div><span class="modcode">${esc(sim.section.toUpperCase())} · ${esc(sim.code)}</span>
           <h1>${esc(sim.title)} <span class="lvtag">[${esc(sim.level)}]</span></h1>
           <small class="muted">${esc(sim.vehicle)} · ${sim.min} min · ${sim.comps.map(c => comp(c).short).join(', ')}</small></div>
@@ -1887,7 +2017,7 @@ function runSenala(el, pr) {
   const N = pr.steps.length;
   el.innerHTML = `
     <div class="modhead card">
-      <button class="backbtn" onclick="go('senala')" aria-label="Volver">←</button>
+      <button class="backbtn" onclick="go(currentModel() ? 'practicar' : 'senala')" aria-label="Volver">←</button>
       <div><span class="modcode">SEÑALA LA PIEZA · ${N} PASOS</span><h1>${pr.icon} ${esc(pr.title)}</h1><small class="muted">${esc(pr.subtitle)}</small></div>
     </div>
     <div class="idwrap">
@@ -2073,7 +2203,7 @@ function runSenala(el, pr) {
       <div class="ovscore"><b>${score}</b><span>/100</span></div>
       <div class="ovstats"><div><span>1er intento</span><b>${first}/${N}</b></div><div><span>Errores</span><b>${st.errors.length}</b></div><div><span>Mostradas</span><b>${shown.length}</b></div><div><span>Tiempo</span><b>${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}</b></div></div>
       ${shown.length ? `<p class="small"><b>Repasa:</b> ${shown.map(s => esc(nm(s.target))).join(', ')}</p>` : ''}
-      <div class="row center-row"><button class="btn ghost" id="again">↻ Repetir</button><button class="btn primary" onclick="go('practicar')">Otras prácticas</button></div>
+      <div class="row center-row"><button class="btn ghost" id="again">↻ Repetir</button><button class="btn primary" onclick="go('practicar')">Volver a los módulos</button></div>
     </div>`;
     $('#again').onclick = () => render();
   }
@@ -2092,25 +2222,174 @@ function runSenala(el, pr) {
 /* =========================================================
    PRACTICAR — punto de entrada a todas las prácticas
    ========================================================= */
-function viewPracticar(el) {
-  const doneS = SENALA.filter(p => (S.procs || []).some(x => x.id === 'senala-' + p.id)).length;
-  const doneA = SIMS.filter(s => simProg(s.id).hacer != null).length;
-  const doneT = PROCEDURES.filter(p => (S.procs || []).some(x => x.id === p.id)).length;
-  const doneF = new Set(S.practice.map(p => p.id)).size;
-  const items = [
-    ['senala', '👆', 'Señala la pieza', 'Reconoce cada pieza y herramienta del proceso. Ideal para empezar.', `${doneS}/${SENALA.length} procesos`, true],
-    ['aprende', '⭐', 'Aprende haciendo', 'Saber → Hacer → Demostrar: repara paso a paso con vidas y cronómetro.', `${doneA}/${SIMS.length} módulos`],
-    ['taller', '🔧', 'Taller virtual', 'Procedimientos con caja de herramientas, torques y lecturas.', `${doneT}/${PROCEDURES.length} procedimientos`],
-    ['practica', '🛠️', 'Simulador de fallas', 'Toma decisiones de diagnóstico ante una falla real.', `${doneF}/${SCENARIOS.length} escenarios`],
-    ['inspeccion', '🚌', 'Modelo 3D del autobús', 'Explora el autobús eléctrico y diésel con fichas de cada pieza.', 'Libre'],
-  ];
+/* =========================================================
+   PRACTICAR — garage de modelos (tipo videojuego) → módulos
+   (grupos de función) → prácticas del módulo
+   ========================================================= */
+const currentModel = () => BUS_MODELS.find(m => m.id === S.bus) || null;
+const powerMatch = (power, model) => power === 'all' || (power === 'ev' && model.power !== 'diesel') || (power === 'combustion' && model.power !== 'electrico');
+function practicesFor(model, group) {
+  return PRACTICE_CATALOG.filter(p => p.group === group && powerMatch(p.power, model)).map(p => {
+    let title = '', min = 5, route = '', done = false, pct = 0, locked = false, steps = '';
+    if (p.type === 'senala') { const x = SENALA.find(z => z.id === p.id); title = x.title; min = x.min; route = 'senala/' + x.id; steps = `${x.steps.length} pasos`; done = (S.procs || []).some(r => r.id === 'senala-' + x.id); }
+    if (p.type === 'aprende') { const x = SIMS.find(z => z.id === p.id); title = x.title; min = x.min; route = 'aprende/' + x.id; steps = `${x.steps.length} pasos`; pct = simPct(simProg(x.id)); done = pct === 100; }
+    if (p.type === 'taller') { const x = PROCEDURES.find(z => z.id === p.id); title = x.title; min = x.min; route = 'taller/' + x.id; steps = `${x.steps.length} tareas`; done = (S.procs || []).some(r => r.id === x.id && r.passed); locked = procLocked(x); }
+    if (p.type === 'fallas') { const x = SCENARIOS.find(z => z.id === p.id); title = x.title; min = x.min; route = 'practica/' + x.id; steps = `${Object.keys(x.nodes).length} decisiones`; done = S.practice.some(r => r.id === x.id && r.passed); locked = scenarioLocked(x); }
+    return { ...p, title, min, route, done, pct: done ? 100 : pct, locked, steps };
+  }).sort((a, b) => PRACTICE_TYPES[a.type].order - PRACTICE_TYPES[b.type].order);
+}
+const busThumbs = {};
+function busThumb(model) {
+  if (busThumbs[model.id]) return busThumbs[model.id];
+  try {
+    const c = document.createElement('canvas'); c.width = 420; c.height = 230;
+    const v = E3D.buildModel(model);
+    const sc = new E3D.Scene(c, { manual: true, body: v.body, shadowRect: v.shadow, dist: v.dist * 0.92, yaw: 0.78, pitch: 0.26, target: [0, 1.55, 0] });
+    sc.setMeshes(v.meshes);
+    busThumbs[model.id] = sc.snapshot();
+  } catch (e) { busThumbs[model.id] = ''; }
+  return busThumbs[model.id];
+}
+function applyModelToScene(scene, model, mode) {
+  const v = E3D.buildModel(model, mode);
+  scene.setMeshes(v.meshes); scene.body = v.body; scene.shadowRect = v.shadow; scene.dist = v.dist; scene.target = [0, 1.6, 0];
+  return v;
+}
+
+function viewPracticar(el, param) {
+  if (param === 'elegir' || !currentModel()) return viewGarage(el);
+  if (param && /^m\d$/.test(param)) return viewModule(el, +param.slice(1));
+  viewModules(el);
+}
+
+function viewGarage(el) {
+  let idx = Math.max(0, BUS_MODELS.findIndex(m => m.id === S.bus));
+  const maxP = Math.max(...BUS_MODELS.map(m => FUNCTION_GROUPS.filter(g => g.available).reduce((s, g) => s + practicesFor(m, g.n).length, 0)));
   el.innerHTML = `
-    <div class="page-head"><div><span class="eyebrow">Módulo práctico</span><h1>Practicar</h1>
-      <p class="muted">Recomendado: empieza por <b>Señala la pieza</b>, sigue con <b>Aprende haciendo</b> y demuestra en el <b>Taller</b> y el <b>Simulador de fallas</b>.</p></div></div>
-    <div class="hubgrid">${items.map(([r, ic, t, d, p, isNew], k) => `
-      <a class="card hubcard ${k === 0 ? 'feat' : ''}" href="#/${r}">
-        <span class="hubicon">${ic}</span>
-        <div><b>${t} ${isNew ? '<span class="chip orange">Nuevo</span>' : ''}</b><p>${d}</p><small>${p}</small></div>
-        <span class="hubgo">→</span>
-      </a>`).join('')}</div>`;
+    <div class="garage">
+      <div class="g-head"><span class="eyebrow">Paso 1 de 2 · Garage</span><h1>Elige tu autobús</h1>
+        <p class="muted">Cada modelo tiene sus propios módulos de práctica. Usa las flechas, el teclado (← →) o toca una miniatura.</p></div>
+      <div class="g-main">
+        <div class="g-stage" id="gStage">
+          <canvas id="gcv"></canvas>
+          <button class="g-arrow l" id="gPrev" aria-label="Modelo anterior">‹</button>
+          <button class="g-arrow r" id="gNext" aria-label="Modelo siguiente">›</button>
+          <div class="g-count" id="gCount"></div>
+          <div class="g-dots" id="gDots"></div>
+        </div>
+        <div class="g-info" id="gInfo"></div>
+      </div>
+      <div class="g-thumbs" id="gThumbs"></div>
+      <p class="g-note">Modelos de referencia para el prototipo: formas y datos simplificados.</p>
+    </div>`;
+  const scene = new E3D.Scene($('#gcv'), { autoRotate: true, xray: false, pitch: 0.3, yaw: 0.8 });
+  cleanup.push(() => scene.destroy());
+  const show = (i, dir = 0) => {
+    idx = (i + BUS_MODELS.length) % BUS_MODELS.length;
+    const m = BUS_MODELS[idx];
+    applyModelToScene(scene, m);
+    scene.yaw = 0.8; scene.autoRotate = true;
+    const groups = FUNCTION_GROUPS.filter(g => g.available);
+    const nP = groups.reduce((s, g) => s + practicesFor(m, g.n).length, 0);
+    const hv = m.power === 'electrico' ? 100 : m.power === 'hibrido' ? 60 : 0;
+    const stat = (label, pct, val) => `<div class="g-stat"><span>${label}</span><div class="g-bar"><i style="width:${pct}%"></i></div><b>${val}</b></div>`;
+    const info = $('#gInfo');
+    info.innerHTML = `
+      <div class="g-chips"><span class="chip">${esc(m.tipo)}</span><span class="chip ${m.power === 'diesel' ? 'orange' : 'blue'}">${POWER_LABEL[m.power]}</span></div>
+      <h2>${esc(m.name)}</h2>
+      <p>${esc(m.desc)}</p>
+      <div class="g-stats">
+        ${stat('Longitud', round(m.len / 18 * 100), `≈ ${m.len} m`)}
+        ${stat('Alto voltaje', hv, hv === 100 ? 'Alto' : hv ? 'Medio' : 'No aplica')}
+        ${stat('Prácticas', round(nP / maxP * 100), `${nP}`)}
+        ${stat('Módulos', round(groups.length / FUNCTION_GROUPS.length * 100), `${groups.length} de ${FUNCTION_GROUPS.length}`)}
+      </div>
+      <button class="btn primary g-select" id="gSelect">▶ Seleccionar este autobús</button>
+      ${S.bus === m.id ? '<p class="small muted g-current">✓ Es tu autobús actual</p>' : ''}`;
+    info.classList.remove('slide-l', 'slide-r'); void info.offsetWidth; if (dir) info.classList.add(dir > 0 ? 'slide-r' : 'slide-l');
+    $('#gSelect').onclick = () => { S.bus = m.id; log('práctica', `Eligió el autobús ${m.name}`); save(); toast(`🚌 ${m.name} seleccionado`); go('practicar'); };
+    $('#gCount').textContent = `${idx + 1} / ${BUS_MODELS.length}`;
+    $('#gDots').innerHTML = BUS_MODELS.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('');
+    $$('#gThumbs .g-thumb').forEach((t, k) => t.classList.toggle('on', k === idx));
+    const on = $('#gThumbs .g-thumb.on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+  };
+  $('#gThumbs').innerHTML = BUS_MODELS.map((m, k) => `<button class="g-thumb" data-k="${k}"><span class="g-img">${busThumb(m) ? `<img src="${busThumb(m)}" alt="">` : '🚌'}</span><b>${esc(m.name.replace('Volvo ', ''))}</b><small>${esc(m.tipo)} · ${POWER_LABEL[m.power]}</small>${S.bus === m.id ? '<em>Actual</em>' : ''}</button>`).join('');
+  $$('#gThumbs .g-thumb').forEach(t => t.onclick = () => show(+t.dataset.k, +t.dataset.k > idx ? 1 : -1));
+  $('#gPrev').onclick = () => show(idx - 1, -1);
+  $('#gNext').onclick = () => show(idx + 1, 1);
+  const onKey = e => { if (e.key === 'ArrowLeft') show(idx - 1, -1); if (e.key === 'ArrowRight') show(idx + 1, 1); if (e.key === 'Enter' && document.activeElement === document.body) $('#gSelect').click(); };
+  document.addEventListener('keydown', onKey);
+  cleanup.push(() => document.removeEventListener('keydown', onKey));
+  show(idx);
+}
+
+function busBar(model, extra = '') {
+  return `<div class="busbar card">
+    <span class="bb-img">${busThumb(model) ? `<img src="${busThumb(model)}" alt="">` : '🚌'}</span>
+    <div><span class="eyebrow">Tu autobús</span><b>${esc(model.name)}</b><small>${esc(model.tipo)} · ${POWER_LABEL[model.power]}</small></div>
+    ${extra}<button class="btn ghost" onclick="go('practicar/elegir')">🔄 Cambiar autobús</button></div>`;
+}
+
+// práctica principal de cada módulo: el botón del módulo lleva directo a ella
+function primaryPractice(model, n) {
+  if (n === 2) return { route: 'senala/bujias', title: 'Cambio de bujía', type: 'senala' };
+  if (n === 3) return { route: 'senala/bateria24', title: 'Reemplazo de batería', type: 'senala' };
+  return null;
+}
+function viewModules(el) {
+  const m = currentModel();
+  const avail = FUNCTION_GROUPS.filter(g => g.available);
+  el.innerHTML = `
+    ${busBar(m)}
+    <div class="page-head"><div><span class="eyebrow">Paso 2 de 2 · Módulos</span><h1>Elige un módulo</h1>
+      <p class="muted">Organizados por grupo de función, como en la información de servicio. Por ahora están disponibles ${avail.map(g => `<b>${g.n} · ${esc(g.name)}</b>`).join(' y ')}; el resto se habilitará al escalar la plataforma.</p></div></div>
+    <div class="fgrid">${FUNCTION_GROUPS.map(g => {
+      const list = g.available ? practicesFor(m, g.n) : [];
+      const done = list.filter(p => p.done).length;
+      const sub = typeof g.sub === 'string' ? g.sub : g.sub[m.power];
+      return `<button class="fcard ${g.available ? '' : 'locked'}" data-g="${g.n}" ${g.available ? '' : 'aria-disabled="true"'}>
+        <span class="fnum">${g.n}</span>
+        <span class="ficon">${g.icon}</span>
+        <b>${esc(g.name)}</b><small>${esc(sub)}</small>
+        ${g.available ? `<span class="fmain">${PRACTICE_TYPES[primaryPractice(m, g.n).type].icon} ${esc(primaryPractice(m, g.n).title)}</span>
+          <div class="fprog"><div class="bar"><i style="width:${list.length ? round(done / list.length * 100) : 0}%"></i></div><span>${done}/${list.length} prácticas</span></div>
+          <span class="frow"><span class="fgo">▶ Practicar</span><a class="fmore" href="#/practicar/m${g.n}">Otras prácticas (${Math.max(0, list.length - 1)})</a></span>`
+          : '<span class="flock">🔒 Próximamente</span>'}
+      </button>`; }).join('')}</div>`;
+  $$('.fcard', el).forEach(b => b.onclick = () => {
+    const g = FUNCTION_GROUPS.find(x => x.n === +b.dataset.g);
+    if (!g.available) { b.classList.remove('nope'); void b.offsetWidth; b.classList.add('nope'); toast(`🔒 «${g.name}» estará disponible cuando se escale la plataforma`); return; }
+    go(primaryPractice(m, g.n).route);
+  });
+  $$('.fmore', el).forEach(a => a.onclick = e => e.stopPropagation());
+}
+
+function viewModule(el, n) {
+  const m = currentModel(), g = FUNCTION_GROUPS.find(x => x.n === n);
+  if (!g || !g.available) return go('practicar');
+  const list = practicesFor(m, n);
+  const done = list.filter(p => p.done).length;
+  const next = list.find(p => !p.done && !p.locked);
+  const sub = typeof g.sub === 'string' ? g.sub : g.sub[m.power];
+  el.innerHTML = `
+    ${busBar(m)}
+    <div class="modhead card">
+      <button class="backbtn" onclick="go('practicar')" aria-label="Volver a los módulos">←</button>
+      <span class="fnum big">${g.n}</span>
+      <div><span class="modcode">GRUPO DE FUNCIÓN ${g.n} · ${esc(m.name.toUpperCase())}</span><h1>${g.icon} ${esc(g.name)}</h1><small class="muted">${esc(sub)}</small></div>
+    </div>
+    <div class="modprog big"><div class="bar"><i style="width:${list.length ? round(done / list.length * 100) : 0}%"></i></div><b>${done}/${list.length}</b></div>
+    ${next ? `<div class="banner next-prac" onclick="go('${next.route}')">▶ <b>Siguiente recomendado:</b> ${PRACTICE_TYPES[next.type].icon} ${esc(next.title)} <span class="muted">· ${esc(PRACTICE_TYPES[next.type].name)}</span></div>` : ''}
+    <div class="plist">${list.map(p => `
+      <a class="card pcard ${p.locked ? 'locked' : ''} ${p.done ? 'done' : ''}" href="#/${p.route}">
+        <span class="pc-type">${PRACTICE_TYPES[p.type].icon}</span>
+        <div class="pc-main">
+          <span class="eyebrow">${esc(PRACTICE_TYPES[p.type].name)}</span>
+          <b>${esc(p.title)}</b>
+          <small>${p.steps} · ⏱ ${p.min} min${p.note ? ` · ${esc(p.note)}` : ''}</small>
+          ${!p.done && p.pct ? `<div class="modprog"><div class="bar"><i style="width:${p.pct}%"></i></div><b>${p.pct}%</b></div>` : ''}
+        </div>
+        <span class="pc-status">${p.locked ? '🔒 Requisito' : p.done ? '✓ Completado' : 'Empezar →'}</span>
+      </a>`).join('') || '<p class="muted">No hay prácticas de este módulo para este tipo de autobús.</p>'}</div>
+    <div class="row"><button class="btn ghost" onclick="go('inspeccion')">🚌 Explorar el ${esc(m.name)} en 3D</button></div>`;
 }
