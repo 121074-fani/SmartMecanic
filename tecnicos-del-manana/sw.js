@@ -1,7 +1,7 @@
 /* Service worker: la app funciona sin conexión.
    Archivos de la app: red primero (siempre la versión vigente) y caché como respaldo offline.
    MediaPipe: caché primero (archivos versionados que no cambian). */
-const CACHE = 'tdm-v22';
+const CACHE = 'tdm-v23';
 // MediaPipe (WASM + modelo, ~22 MB): caché propia que sobrevive a los cambios de versión de la app
 const MP_CACHE = 'tdm-mediapipe-1.2.2';
 const isMediaPipe = url => url.startsWith('https://cdn.jsdelivr.net/npm/@mediapipe/') || url.startsWith('https://storage.googleapis.com/mediapipe-models/');

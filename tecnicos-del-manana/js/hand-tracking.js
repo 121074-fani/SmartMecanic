@@ -129,6 +129,21 @@
     overlay.setAttribute('aria-hidden', 'true');
     overlay.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2';
 
+    // celular: fondo desenfocado con la palabra VOLVO detrás del modelo (entre el video y el visor 3D)
+    var brand = null;
+    if (mobile) {
+      brand = document.createElement('div');
+      brand.className = 'handbrand';
+      brand.setAttribute('aria-hidden', 'true');
+      brand.textContent = 'VOLVO';
+    }
+    var showBrand = function (on) {
+      stage.classList.toggle('hand-on', on);
+      if (!brand) return;
+      if (on && scene.canvas && scene.canvas.parentNode === stage) stage.insertBefore(brand, scene.canvas);
+      else if (!on) brand.remove();
+    };
+
     var box = null, statusEl, switchBtn = null, closeBtn = null;
     if (ext) {
       stage.appendChild(overlay);
@@ -198,6 +213,7 @@
       btn.classList.add('on');
       if (box) box.hidden = false;
       if (mode === 'background' && !ext) { stage.prepend(video); stage.classList.add('ar-on'); scene.noGrid = true; }
+      if (mobile) showBrand(true);
       scene.autoRotate = false;
       setStatus('Cargando reconocimiento de manos…');
       openCamera()
@@ -245,6 +261,7 @@
       stream = null;
       if (landmarker) { try { landmarker.close(); } catch (e) { /* ya cerrado */ } landmarker = null; }
       if (box) box.hidden = true;
+      if (mobile) showBrand(false);
       btn.classList.remove('on');
       hideTrackers(); removeShelf();
       octx.clearRect(0, 0, overlay.width, overlay.height);
