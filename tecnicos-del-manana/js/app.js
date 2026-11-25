@@ -1046,6 +1046,19 @@ function teamErrorStats(team) {
   });
   return { rows, questions, procs };
 }
+/* Evolución simulada de un error: 4 semanas antes y 6 después de asignar la práctica correctiva */
+const TREND_WEEKS = 10, TREND_ACTION = 4;
+function errorTrend(r) {
+  let h = 7; for (const ch of r.id + (teamFilter.taller || '') + (teamFilter.role || '')) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0;
+  const rnd = () => { h = (Math.imul(h, 1103515245) + 12345) | 0; return ((h >>> 8) & 0xffff) / 0xffff; };
+  const start = Math.max(3, r.pct);
+  const keep = r.safety ? 0.22 : r.cat === 'Identificación' ? 0.35 : r.cat === 'Diagnóstico' ? 0.45 : 0.4;   // fracción que persiste
+  const values = Array.from({ length: TREND_WEEKS }, (_, w) => w < TREND_ACTION
+    ? Math.round(start * (0.93 + rnd() * 0.14))
+    : Math.round(start * (keep + (1 - keep) * Math.exp(-(w - TREND_ACTION + 1) * 0.6)) * (0.92 + rnd() * 0.14)));
+  const before = round(avg(values.slice(0, TREND_ACTION))), after = round(avg(values.slice(-3)));
+  return { values, before, after, drop: before ? round((before - after) / before * 100) : 0 };
+}
 function dashErrors(el) {
   const draw = () => {
     const team = filterTeam(teamData());
@@ -1075,6 +1088,7 @@ function dashErrors(el) {
         ${topSafety && topSafety.pct ? `<li class="bad"><b>La falla de seguridad más común</b> es «${esc(topSafety.label)}» (<b>${topSafety.pct}%</b>)${worstTaller && !teamFilter.taller ? `, sobre todo en <b>${esc(worstTaller.tl)}</b> (${worstTaller.pct}%)` : ''}.</li>` : ''}
         ${topId && topId.pct ? `<li><b>La pieza que más se confunde:</b> buscaban «${esc(topId.pair[0])}» y tocaron «${esc(topId.pair[1])}» (<b>${topId.pct}%</b>).</li>` : ''}
         ${topQ ? `<li><b>La pregunta más fallada</b> (${topQ.pct}%): «${esc(topQ.q.q)}». La respuesta equivocada más elegida fue «${esc(topQ.topWrong)}».</li>` : ''}
+        ${rows[0] ? (() => { const tr = errorTrend(rows[0]); return `<li class="ok"><b>Después de asignar la práctica correctiva</b>, «${esc(rows[0].label)}» bajó de <b>${tr.before}%</b> a <b>${tr.after}%</b> de los técnicos (−${tr.drop}%).</li>`; })() : ''}
         ${rows[0] ? `<li class="act">🎯 <b>Acción sugerida:</b> ${esc(rows[0].action.text)}.</li>` : ''}
       </ul></div>
       <div class="grid g-2-1">
@@ -1097,6 +1111,27 @@ function dashErrors(el) {
           <div class="actionbox">🎯 <b>Acción sugerida:</b> ${esc(sel.action.text)}<button class="btn sm primary" onclick="go('${sel.action.route}')">Ir →</button></div>` : '<p class="muted">Sin datos con estos filtros.</p>'}
         </div>
       </div>
+      ${sel ? (() => {
+        const tr = errorTrend(sel);
+        const top = shown.slice(0, 6).map(r => ({ r, t: errorTrend(r) }));
+        const mx = Math.max(20, Math.ceil((Math.max(...tr.values) + 4) / 20) * 20);
+        return `<div class="grid g-2-1">
+        <div class="card"><h3>📉 Antes y después: ${esc(sel.label)}</h3>
+          <p class="muted small">% de técnicos que cometieron el error cada semana. En la semana ${TREND_ACTION + 1} se asignó la práctica correctiva: «${esc(sel.action.text)}».</p>
+          ${Charts.line({ xs: Array.from({ length: TREND_WEEKS }, (_, i) => 'Sem ' + (i + 1)), max: mx, unit: '%', dots: true, xLabel: 'Semanas',
+            markers: [{ i: TREND_ACTION, label: '▶ Práctica asignada', color: '#f5821f' }],
+            series: [{ name: '% de técnicos con el error', values: tr.values, color: sel.safety ? '#dc2626' : '#0b2d52' }] })}
+        </div>
+        <div class="card ba"><h3>Resultado</h3>
+          <div class="ba-pair"><div><span>Antes</span><b>${tr.before}%</b></div><span class="ba-arrow">→</span><div class="after"><span>Después</span><b>${tr.after}%</b></div></div>
+          <div class="ba-drop">▼ ${tr.drop}% menos técnicos con este error</div>
+          <h4>Top errores: antes → después</h4>
+          ${top.map(({ r, t }) => `<div class="ba-row"><span title="${esc(r.label)}">${esc(r.label)}</span>
+            <div class="ba-bars"><div class="ebar"><i class="pre" style="width:${Math.max(2, t.before)}%"></i></div><div class="ebar"><i class="post" style="width:${Math.max(2, t.after)}%"></i></div></div>
+            <b>${t.before}→${t.after}%</b></div>`).join('')}
+          <div class="legend"><span><i style="background:#94a3b8"></i>Antes</span><span><i style="background:#16a34a"></i>Después</span></div>
+          <p class="muted small">Datos simulados del equipo para el prototipo.</p>
+        </div></div>`; })() : ''}
       <div class="grid g-1-1">
         <div class="card"><h3>👆 Piezas que más se confunden</h3><p class="muted small">En «Señala la pieza»: qué buscaban y qué tocaron por error.</p>
           ${rows.filter(r => r.pair).map(r => `<div class="pairrow"><div><span class="pr-a">${esc(r.pair[0])}</span><span class="pr-arrow">→ tocaron</span><span class="pr-b">${esc(r.pair[1])}</span></div><div class="er-bar">${bar(r.pct)}<span>${r.pct}%</span></div></div>`).join('')}</div>

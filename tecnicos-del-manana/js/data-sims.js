@@ -70,19 +70,37 @@ const SIM_SCENES = (() => {
     ...[-0.5, -0.25, 0, 0.25, 0.5].map(z => B({ id: 'fin', pos: [1.56, 1.15, 0.25 + z], size: [0.02, 1.0, 0.04], color: '#1d4ed8', kind: 'static' })),
   ];
 
-  const baterias = () => [
-    B({ id: 'tray', pos: [0, 0.5, 0], size: [3.3, 0.1, 1.7], color: '#cbd5e1', kind: 'floor' }), ...legs(3.3, 1.7, 0.45),
-    B({ id: 'batA', pos: [-0.75, 0.93, 0], size: [1.2, 0.76, 0.95], color: '#0b2d52' }),
-    B({ id: 'batB', pos: [0.75, 0.93, 0], size: [1.2, 0.76, 0.95], color: '#0b2d52' }),
-    Cy({ id: 'a_pos', pos: [-1.15, 1.37, 0.22], radius: 0.075, length: 0.12, axis: 'y', segs: 10, color: '#dc2626' }),
-    Cy({ id: 'a_neg', pos: [-0.35, 1.37, 0.22], radius: 0.075, length: 0.12, axis: 'y', segs: 10, color: '#111827' }),
-    Cy({ id: 'b_pos', pos: [0.35, 1.37, 0.22], radius: 0.075, length: 0.12, axis: 'y', segs: 10, color: '#dc2626' }),
-    Cy({ id: 'b_neg', pos: [1.15, 1.37, 0.22], radius: 0.075, length: 0.12, axis: 'y', segs: 10, color: '#111827' }),
-    B({ id: 'cable_pos', pos: [-1.6, 1.44, 0.22], size: [0.9, 0.07, 0.09], color: '#dc2626' }),
-    B({ id: 'jumper', pos: [0, 1.44, 0.22], size: [0.78, 0.06, 0.09], color: '#94a3b8' }),
-    B({ id: 'cable_neg', pos: [1.6, 1.44, 0.22], size: [0.9, 0.07, 0.09], color: '#111827' }),
-    B({ id: 'bracket', pos: [0, 1.34, -0.25], size: [2.7, 0.05, 0.1], color: '#64748b' }),
-  ];
+  const baterias = () => {
+    const bat = (id, x) => [
+      B({ id, pos: [x, 0.92, 0], size: [1.2, 0.74, 0.95], color: '#0b2d52', gloss: 0.4 }),
+      B({ id, pos: [x, 1.31, 0], size: [1.22, 0.06, 0.97], color: '#111827' }),
+      ...[-0.25, 0, 0.25].map(dx => Cy({ id, pos: [x + dx, 1.35, -0.25], radius: 0.06, length: 0.03, axis: 'y', segs: 12, color: '#374151' })),
+      B({ id, pos: [x, 0.98, 0.48], size: [0.8, 0.26, 0.01], color: '#f8fafc' }),
+      B({ id, pos: [x, 1.06, 0.485], size: [0.8, 0.06, 0.01], color: '#f5821f' }),
+      ...[-0.62, 0.62].map(dx => B({ id, pos: [x + dx, 1.15, 0], size: [0.03, 0.08, 0.4], color: '#1f2937' })),
+    ];
+    const post = (id, x, color) => [
+      Cy({ id, pos: [x, 1.38, 0.22], radius: 0.075, length: 0.08, axis: 'y', segs: 14, color, gloss: 0.6 }),
+      Cy({ id, pos: [x, 1.44, 0.22], radius: 0.05, length: 0.06, axis: 'y', segs: 12, color: '#9ca3af', gloss: 0.8 }),
+    ];
+    const cable = (id, x, len, color, rr = 0.045) => [
+      Cy({ id, pos: [x, 1.47, 0.22], radius: rr, length: len, axis: 'x', segs: 12, color, gloss: 0.4 }),
+    ];
+    return [
+      B({ id: 'tray', pos: [0, 0.5, 0], size: [3.3, 0.1, 1.7], color: '#cbd5e1', kind: 'floor' }), ...legs(3.3, 1.7, 0.45),
+      ...bat('batA', -0.75), ...bat('batB', 0.75),
+      ...post('a_pos', -1.15, '#dc2626'), ...post('a_neg', -0.35, '#111827'), ...post('b_pos', 0.35, '#dc2626'), ...post('b_neg', 1.15, '#111827'),
+      ...cable('cable_pos', -1.6, 0.9, '#dc2626'),
+      B({ id: 'cable_pos', pos: [-1.17, 1.47, 0.22], size: [0.14, 0.1, 0.16], color: '#b91c1c' }),
+      ...cable('jumper', 0, 0.62, '#94a3b8', 0.035),
+      B({ id: 'jumper', pos: [-0.35, 1.47, 0.22], size: [0.12, 0.08, 0.14], color: '#cbd5e1', gloss: 0.7 }),
+      B({ id: 'jumper', pos: [0.35, 1.47, 0.22], size: [0.12, 0.08, 0.14], color: '#cbd5e1', gloss: 0.7 }),
+      ...cable('cable_neg', 1.6, 0.9, '#111827'),
+      B({ id: 'cable_neg', pos: [1.17, 1.47, 0.22], size: [0.14, 0.1, 0.16], color: '#1f2937' }),
+      B({ id: 'bracket', pos: [0, 1.37, -0.32], size: [2.7, 0.05, 0.1], color: '#64748b', gloss: 0.5 }),
+      ...[-1.3, 1.3].map(x => Cy({ id: 'bracket', pos: [x, 1.0, -0.32], radius: 0.02, length: 0.75, axis: 'y', segs: 8, color: '#64748b' })),
+    ];
+  };
 
   return {
     inversor: { build: inversor, cam: { target: [0.15, 0.95, 0], dist: 8.6, yaw: 0.5, pitch: 0.6 }, shadow: [-2.8, 2.8, -1.3, 1.3], grid: 0.5 },

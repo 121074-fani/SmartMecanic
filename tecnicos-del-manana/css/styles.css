@@ -944,3 +944,21 @@ b.bad { color: var(--bad); }
 .hclose { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .55); color: #fff; font-size: .75rem; cursor: pointer; }
 .vt.on { border-color: var(--accent); color: var(--accent); }
 @media (max-width: 600px) { .handcam { width: 120px; bottom: 56px; } }
+
+/* ---------- Antes y después del error ---------- */
+.insights li.ok { border-left-color: var(--ok); background: #f0fdf4; }
+.ba-pair { display: flex; align-items: center; gap: 12px; margin: 6px 0; }
+.ba-pair div { flex: 1; background: var(--card2); border-radius: 12px; padding: 10px; text-align: center; }
+.ba-pair div.after { background: #f0fdf4; }
+.ba-pair span { display: block; font-size: .72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+.ba-pair b { font-size: 2rem; color: var(--navy); }
+.ba-pair .after b { color: var(--ok); }
+.ba-arrow { font-size: 1.4rem; color: var(--muted); }
+.ba-drop { background: #dcfce7; color: #15803d; font-weight: 800; border-radius: 10px; padding: 6px 10px; text-align: center; font-size: .9rem; }
+.ba-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px 62px; gap: 8px; align-items: center; font-size: .8rem; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.ba-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ba-row b { text-align: right; color: var(--navy); font-size: .78rem; }
+.ba-bars { display: grid; gap: 3px; }
+.ba-bars .ebar { height: 6px; }
+.ebar i.pre { background: #94a3b8; }
+.ebar i.post { background: var(--ok); }

@@ -12,38 +12,96 @@ const SENALA_SCENES = (() => {
   const X = i => -1.25 + i * 0.5; // posición de cada cilindro (1..6 → índice 0..5)
 
   /* Motor de 6 cilindros en línea a gas natural, sobre un soporte, con mesa de herramientas al frente */
+  /* Bujía de encendido: terminal, cerámica con aletas, tuerca hexagonal, rosca y electrodo (eje vertical) */
+  const sparkPlug = (id, x, y, z) => [
+    Cy({ id, pos: [x, y + 0.02, z], radius: 0.034, length: 0.13, axis: 'y', segs: 14, color: '#f8fafc', gloss: 0.9 }),
+    ...[0.05, 0.075, 0.1].map(dy => Cy({ id, pos: [x, y + dy, z], radius: 0.039, length: 0.012, axis: 'y', segs: 14, color: '#e5e7eb' })),
+    Cy({ id, pos: [x, y + 0.115, z], radius: 0.014, length: 0.035, axis: 'y', segs: 8, color: '#9ca3af', gloss: 0.8 }),
+    Cy({ id, pos: [x, y - 0.065, z], radius: 0.05, length: 0.045, axis: 'y', segs: 6, color: '#cbd5e1', gloss: 0.9 }),
+    Cy({ id, pos: [x, y - 0.115, z], radius: 0.026, length: 0.06, axis: 'y', segs: 10, color: '#a8a29e', gloss: 0.5 }),
+    ...[-0.1, -0.12, -0.14].map(dy => Cy({ id, pos: [x, y + dy, z], radius: 0.029, length: 0.006, axis: 'y', segs: 10, color: '#78716c' })),
+    B({ id, pos: [x, y - 0.15, z + 0.012], size: [0.012, 0.014, 0.03], color: '#57534e' }),
+  ];
   const motorGas = () => {
+    const S = { kind: 'static' };
     const M = [
       B({ id: 'stand', pos: [0, 0.32, 0], size: [3.8, 0.1, 1.5], color: '#cbd5e1', kind: 'floor' }), ...legs(0, 0, 3.8, 1.5, 0.28),
-      B({ id: 'block', pos: [0, 0.92, 0], size: [3.2, 0.95, 1.1], color: '#8796ab' }),
-      B({ id: 'head', pos: [0, 1.55, 0], size: [3.2, 0.3, 1.0], color: '#a3b1c2' }),
-      B({ id: 'cover', pos: [0, 1.82, 0], size: [3.0, 0.24, 0.85], color: '#0b2d52' }),
-      B({ id: 'harness', pos: [0, 2.13, 0.27], size: [3.0, 0.05, 0.05], color: '#334155', kind: 'static' }),
-      B({ id: 'manifold', pos: [0, 1.45, -0.68], size: [3.0, 0.26, 0.26], color: '#94a3b8' }),
-      Cy({ id: 'pulley', pos: [-1.72, 0.95, 0], radius: 0.36, length: 0.09, axis: 'x', segs: 18, color: '#111827' }),
-      Cy({ id: 'oilcap', pos: [1.25, 1.99, -0.25], radius: 0.09, length: 0.08, axis: 'y', segs: 12, color: '#f5821f' }),
-      Cy({ id: 'dipstick', pos: [-1.45, 1.35, 0.6], radius: 0.035, length: 0.6, axis: 'y', segs: 8, color: '#facc15' }),
+      // bloque con nervaduras, cárter y culata con tornillos
+      B({ id: 'block', pos: [0, 0.92, 0], size: [3.2, 0.95, 1.1], color: '#8796ab', gloss: 0.3 }),
+      ...[-1.2, -0.7, -0.2, 0.3, 0.8, 1.3].map(x => B({ id: 'block', pos: [x, 0.95, 0.56], size: [0.06, 0.8, 0.03], color: '#7a899e' })),
+      B({ id: 'oilpan', pos: [0, 0.4, 0], size: [3.0, 0.08, 0.95], color: '#475569', ...S }),
+      B({ id: 'head', pos: [0, 1.55, 0], size: [3.2, 0.3, 1.0], color: '#a3b1c2', gloss: 0.4 }),
+      ...[-1.45, -0.95, -0.45, 0.05, 0.55, 1.05, 1.45].flatMap(x => [0.44, -0.44].map(z => Cy({ id: 'head', pos: [x, 1.71, z], radius: 0.03, length: 0.03, axis: 'y', segs: 6, color: '#64748b' }))),
+      // tapa de punterías con nervaduras
+      B({ id: 'cover', pos: [0, 1.82, 0], size: [3.0, 0.24, 0.85], color: '#0b2d52', gloss: 0.6 }),
+      ...[-0.36, 0.36].map(z => B({ id: 'cover', pos: [0, 1.95, z], size: [2.9, 0.03, 0.05], color: '#123e6e' })),
+      // arnés de las bobinas con su canaleta
+      Cy({ id: 'harness', pos: [0, 2.17, 0.27], radius: 0.03, length: 3.0, axis: 'x', segs: 8, color: '#1f2937', ...S }),
+      // múltiple de admisión con 6 ramales
+      Cy({ id: 'manifold', pos: [0, 1.38, -0.75], radius: 0.13, length: 3.0, axis: 'x', segs: 16, color: '#94a3b8', gloss: 0.6 }),
+      ...[0, 1, 2, 3, 4, 5].map(i => Cy({ id: 'manifold', pos: [X(i), 1.5, -0.6], radius: 0.06, length: 0.22, axis: 'z', segs: 10, color: '#a1aab8' })),
+      // polea del cigüeñal, alternador y banda
+      Cy({ id: 'pulley', pos: [-1.72, 0.95, 0], radius: 0.36, length: 0.09, axis: 'x', segs: 24, color: '#111827', gloss: 0.4 }),
+      Cy({ id: 'pulley', pos: [-1.77, 0.95, 0], radius: 0.12, length: 0.05, axis: 'x', segs: 14, color: '#9ca3af', gloss: 0.8 }),
+      Cy({ id: 'alt', pos: [-1.7, 1.55, -0.32], radius: 0.19, length: 0.26, axis: 'x', segs: 18, color: '#cbd5e1', gloss: 0.7, ...S }),
+      B({ id: 'belt', pos: [-1.78, 1.25, -0.16], size: [0.04, 0.62, 0.05], color: '#0b0f17', ...S }),
+      B({ id: 'belt', pos: [-1.78, 1.25, 0.2], size: [0.04, 0.6, 0.05], color: '#0b0f17', ...S }),
+      Cy({ id: 'oilcap', pos: [1.25, 1.99, -0.25], radius: 0.09, length: 0.08, axis: 'y', segs: 16, color: '#f5821f', gloss: 0.5 }),
+      Cy({ id: 'oilcap', pos: [1.25, 2.04, -0.25], radius: 0.05, length: 0.03, axis: 'y', segs: 12, color: '#ea580c' }),
+      Cy({ id: 'dipstick', pos: [-1.45, 1.35, 0.6], radius: 0.035, length: 0.6, axis: 'y', segs: 10, color: '#facc15' }),
+      Cy({ id: 'dipstick', pos: [-1.45, 1.68, 0.6], radius: 0.06, length: 0.04, axis: 'y', segs: 12, color: '#eab308' }),
       B({ id: 'sensor', pos: [1.45, 1.6, 0.52], size: [0.12, 0.12, 0.1], color: '#a855f7' }),
-      // batería de 12 V del banco de pruebas
-      B({ id: 'battery', pos: [2.45, 0.62, 0.35], size: [0.65, 0.48, 0.5], color: '#0b2d52' }),
-      Cy({ id: 'bat_pos', pos: [2.25, 0.9, 0.42], radius: 0.05, length: 0.09, axis: 'y', segs: 10, color: '#dc2626' }),
-      Cy({ id: 'bat_neg', pos: [2.65, 0.9, 0.42], radius: 0.05, length: 0.09, axis: 'y', segs: 10, color: '#111827' }),
+      Cy({ id: 'sensor', pos: [1.45, 1.6, 0.6], radius: 0.03, length: 0.08, axis: 'z', segs: 8, color: '#7e22ce' }),
+      // batería de 12 V del banco de pruebas: caja, tapa, asa y bornes
+      B({ id: 'battery', pos: [2.45, 0.6, 0.35], size: [0.65, 0.44, 0.5], color: '#0b2d52', gloss: 0.4 }),
+      B({ id: 'battery', pos: [2.45, 0.845, 0.35], size: [0.67, 0.05, 0.52], color: '#111827' }),
+      B({ id: 'battery', pos: [2.45, 0.62, 0.605], size: [0.44, 0.12, 0.01], color: '#f5821f' }),
+      B({ id: 'battery', pos: [2.45, 0.88, 0.22], size: [0.3, 0.025, 0.03], color: '#334155' }),
+      Cy({ id: 'bat_pos', pos: [2.25, 0.9, 0.45], radius: 0.05, length: 0.06, axis: 'y', segs: 14, color: '#dc2626', gloss: 0.6 }),
+      Cy({ id: 'bat_pos', pos: [2.25, 0.94, 0.45], radius: 0.035, length: 0.04, axis: 'y', segs: 12, color: '#b91c1c' }),
+      Cy({ id: 'bat_neg', pos: [2.65, 0.9, 0.45], radius: 0.05, length: 0.06, axis: 'y', segs: 14, color: '#111827', gloss: 0.6 }),
+      Cy({ id: 'bat_neg', pos: [2.65, 0.94, 0.45], radius: 0.035, length: 0.04, axis: 'y', segs: 12, color: '#374151' }),
       // mesa de herramientas al frente
       B({ id: 'tooltable', pos: [0.2, 0.55, 1.45], size: [3.4, 0.06, 0.62], color: '#e2e8f0', kind: 'floor' }), ...legs(0.2, 1.45, 3.4, 0.62, 0.52),
-      Cy({ id: 'llave_bujia', pos: [-1.15, 0.65, 1.45], radius: 0.075, length: 0.42, axis: 'x', segs: 12, color: '#9ca3af' }),
-      Cy({ id: 'dado_comun', pos: [-0.55, 0.64, 1.45], radius: 0.06, length: 0.2, axis: 'x', segs: 10, color: '#6b7280' }),
-      B({ id: 'galgas', pos: [-0.05, 0.6, 1.45], size: [0.34, 0.03, 0.12], color: '#d97706' }),
-      Cy({ id: 'torque', pos: [0.65, 0.63, 1.45], radius: 0.045, length: 0.8, axis: 'x', segs: 10, color: '#334155' }),
-      B({ id: 'grasa', pos: [1.3, 0.62, 1.45], size: [0.26, 0.06, 0.09], color: '#16a34a' }),
+      // dado de bujías: dado largo con inserto de hule, extensión y matraca
+      Cy({ id: 'llave_bujia', pos: [-1.2, 0.655, 1.4], radius: 0.065, length: 0.26, axis: 'x', segs: 6, color: '#d1d5db', gloss: 0.9 }),
+      Cy({ id: 'llave_bujia', pos: [-1.335, 0.655, 1.4], radius: 0.05, length: 0.012, axis: 'x', segs: 12, color: '#7f1d1d' }),
+      Cy({ id: 'llave_bujia', pos: [-0.98, 0.655, 1.4], radius: 0.02, length: 0.2, axis: 'x', segs: 8, color: '#9ca3af', gloss: 0.8 }),
+      Cy({ id: 'llave_bujia', pos: [-0.86, 0.655, 1.4], radius: 0.06, length: 0.05, axis: 'y', segs: 16, color: '#9ca3af', gloss: 0.8 }),
+      Cy({ id: 'llave_bujia', pos: [-0.86, 0.655, 1.56], radius: 0.026, length: 0.26, axis: 'z', segs: 10, color: '#9ca3af', gloss: 0.8 }),
+      Cy({ id: 'llave_bujia', pos: [-0.86, 0.655, 1.66], radius: 0.034, length: 0.12, axis: 'z', segs: 10, color: '#1f2937' }),
+      // dado común (corto, sin inserto)
+      Cy({ id: 'dado_comun', pos: [-0.52, 0.64, 1.38], radius: 0.055, length: 0.13, axis: 'x', segs: 6, color: '#9ca3af', gloss: 0.8 }),
+      Cy({ id: 'dado_comun', pos: [-0.445, 0.64, 1.38], radius: 0.04, length: 0.02, axis: 'x', segs: 12, color: '#4b5563' }),
+      // calibrador de galgas: mango naranja y hojas de acero en abanico
+      B({ id: 'galgas', pos: [-0.18, 0.6, 1.45], size: [0.14, 0.035, 0.08], color: '#ea580c', gloss: 0.4 }),
+      ...[0, 1, 2, 3, 4].map(k => B({ id: 'galgas', pos: [0.03 + k * 0.012, 0.592 + k * 0.007, 1.34 + k * 0.055], size: [0.36 - k * 0.03, 0.006, 0.045], color: k % 2 ? '#cbd5e1' : '#e2e8f0', gloss: 0.8 })),
+      Cy({ id: 'galgas', pos: [-0.2, 0.625, 1.45], radius: 0.02, length: 0.02, axis: 'y', segs: 10, color: '#334155' }),
+      // llave de torque: cabeza con matraca, cuerpo, escala y empuñadura
+      B({ id: 'torque', pos: [0.62, 0.625, 1.6], size: [0.6, 0.05, 0.06], color: '#334155', gloss: 0.6 }),
+      Cy({ id: 'torque', pos: [0.27, 0.625, 1.6], radius: 0.055, length: 0.05, axis: 'y', segs: 16, color: '#cbd5e1', gloss: 0.8 }),
+      Cy({ id: 'torque', pos: [0.27, 0.6, 1.6], radius: 0.018, length: 0.04, axis: 'y', segs: 4, color: '#9ca3af' }),
+      B({ id: 'torque', pos: [0.66, 0.652, 1.6], size: [0.12, 0.006, 0.04], color: '#facc15' }),
+      Cy({ id: 'torque', pos: [1.02, 0.625, 1.6], radius: 0.04, length: 0.22, axis: 'x', segs: 12, color: '#111827' }),
+      // grasa dieléctrica: tubo con pliegue, etiqueta y tapa
+      Cy({ id: 'grasa', pos: [1.32, 0.615, 1.3], radius: 0.045, length: 0.22, axis: 'x', segs: 14, color: '#16a34a', gloss: 0.6 }),
+      Cy({ id: 'grasa', pos: [1.32, 0.615, 1.3], radius: 0.047, length: 0.08, axis: 'x', segs: 14, color: '#f8fafc' }),
+      B({ id: 'grasa', pos: [1.2, 0.615, 1.3], size: [0.02, 0.02, 0.1], color: '#15803d' }),
+      Cy({ id: 'grasa', pos: [1.455, 0.615, 1.3], radius: 0.025, length: 0.05, axis: 'x', segs: 10, color: '#f8fafc' }),
+      // caja de la bujía nueva
       B({ id: 'caja', pos: [1.8, 0.62, 1.45], size: [0.22, 0.08, 0.22], color: '#f5821f', kind: 'static' }),
-      Cy({ id: 'bujia_nueva', pos: [1.8, 0.79, 1.45], radius: 0.05, length: 0.26, axis: 'y', segs: 10, color: '#f8fafc' }),
+      ...sparkPlug('bujia_nueva', 1.8, 0.82, 1.45),
     ];
     for (let i = 0; i < 6; i++) {
-      M.push(B({ id: 'coil' + (i + 1), pos: [X(i), 2.06, 0], size: [0.2, 0.24, 0.28], color: '#1f2937' }));
-      M.push(B({ id: 'conn' + (i + 1), pos: [X(i), 2.12, 0.19], size: [0.11, 0.08, 0.1], color: '#94a3b8' }));
+      // bobina tipo lápiz: cabeza con conector, bota de hule y oreja de montaje
+      M.push(B({ id: 'coil' + (i + 1), pos: [X(i), 2.1, 0], size: [0.22, 0.13, 0.3], color: '#1f2937', gloss: 0.5 }));
+      M.push(Cy({ id: 'coil' + (i + 1), pos: [X(i), 1.99, 0], radius: 0.065, length: 0.12, axis: 'y', segs: 14, color: '#111827' }));
+      M.push(B({ id: 'coil' + (i + 1), pos: [X(i) + 0.1, 2.07, -0.13], size: [0.1, 0.025, 0.07], color: '#374151' }));
+      M.push(B({ id: 'conn' + (i + 1), pos: [X(i), 2.12, 0.19], size: [0.12, 0.08, 0.1], color: '#94a3b8', gloss: 0.4 }));
+      M.push(B({ id: 'conn' + (i + 1), pos: [X(i), 2.17, 0.21], size: [0.06, 0.02, 0.05], color: '#f5821f' }));
       M.push(B({ id: 'num' + (i + 1), pos: [X(i), 1.72, 0.43], size: [0.08, 0.08, 0.01], color: '#0b2d52', kind: 'static' }));
     }
-    M.push(Cy({ id: 'plug1', pos: [X(0), 1.86, 0], radius: 0.05, length: 0.26, axis: 'y', segs: 10, color: '#e5e7eb' }));
+    M.push(...sparkPlug('plug1', X(0), 1.86, 0));
     return M;
   };
 
@@ -77,7 +135,7 @@ const SENALA = [
       { short: 'Retirar la bobina', target: 'coil1', say: 'Señala la bobina de encendido del cilindro 1.', hint: 'Es la pieza negra rectangular encima de la tapa, sobre el cilindro 1.',
         learn: 'La bobina transforma 12–24 V en miles de volts para producir la chispa. Está montada directamente encima de la bujía.', anim: [{ id: 'coil1', off: [0, 0.95, 0.45], a: 0.35 }, { id: 'plug1', a: 1 }] },
       { short: 'Elegir el dado de bujías', target: 'llave_bujia', say: 'Señala la herramienta correcta para aflojar la bujía.', hint: 'Está en la mesa: el dado largo con inserto de hule (no el dado común).',
-        learn: 'El dado de bujías es largo para alcanzar el pozo y tiene un hule que sujeta la cerámica sin romperla.', anim: [{ id: 'llave_bujia', off: [-0.1, 1.5, -1.45] }] },
+        learn: 'El dado de bujías es largo para alcanzar el pozo y tiene un hule que sujeta la cerámica sin romperla.', anim: [{ id: 'llave_bujia', off: [-0.05, 1.5, -1.4] }] },
       { short: 'Retirar la bujía usada', target: 'plug1', say: 'Ahora señala la bujía para retirarla.', hint: 'Quedó visible al retirar la bobina: es la pieza blanca en el pozo del cilindro 1.',
         learn: 'La bujía produce la chispa que enciende la mezcla. Una bujía gastada causa falla de encendido, más consumo y vibración.',
         anim: [{ id: 'plug1', off: [0, 0.9, 0.55], tint: '#a16207' }, { id: 'llave_bujia', off: [0, 0, 0] }],
