@@ -49,8 +49,6 @@ const level = () => 1 + Math.floor(S.xp / XP_PER_LEVEL);
 function addXP(n, why) {
   const before = level();
   S.xp += Math.max(0, round(n));
-  toast(`+${round(n)} XP · ${why}`);
-  if (level() > before) { toast(`⭐ ¡Subiste a nivel ${level()}!`); log('nivel', `Alcanzó el nivel ${level()}`); }
 }
 function badge(id) {
   if (S.badges.includes(id)) return;
@@ -135,15 +133,12 @@ function toast(msg) {
 function renderChrome() {
   const u = $('#userCard');
   if (S.user) {
-    const lv = level(), into = S.xp % XP_PER_LEVEL;
     u.innerHTML = `
       <div class="uc-name">${esc(S.user.name)}</div>
       <div class="uc-role">${esc(ROLES[S.user.role].name)}</div>
-      <div class="uc-lv"><span>Nivel ${lv}</span><span>${S.xp} XP</span></div>
-      <div class="bar"><i style="width:${into / XP_PER_LEVEL * 100}%"></i></div>
       <div class="uc-badges">${S.badges.map(b => `<span title="${esc(BADGES[b].name)}">${BADGES[b].icon}</span>`).join('') || '<span class="muted small">Sin insignias aún</span>'}</div>`;
   } else u.innerHTML = '<div class="muted small">Sin sesión</div>';
-  $('#dayNum').textContent = S.day;
+  const dn = $('#dayNum'); if (dn) dn.textContent = S.day;
   const due = dueReviews().length;
   const badgeEl = $('#navReviews');
   if (badgeEl) { badgeEl.textContent = due; badgeEl.hidden = !due; }
@@ -208,12 +203,14 @@ function runQuiz(container, { total, next, onDone, label = '' }) {
     const order = shuffle(q.o.map((_, i) => i));
     container.innerHTML = `
       <div class="card quiz">
-        <div class="quiz-head"><span class="pill">${comp(q.c).icon} ${esc(compName(q.c))}</span><span class="muted">${esc(label)} · ${results.length + 1} / ${total}</span></div>
+        <div class="quiz-head"><span class="pill">${comp(q.c).icon} ${esc(compName(q.c))}</span><span class="muted">${esc(label)} · ${results.length + 1} / ${total}</span>
+          <button type="button" class="btn sm demo-btn qauto">${demoAuto.on ? '⏹ Detener' : '🎲 Contestar automático'}</button></div>
         <div class="progress"><i style="width:${results.length / total * 100}%"></i></div>
         <h3 class="quiz-q">${esc(q.q)}</h3>
         <div class="opts">${order.map((i, k) => `<button class="opt" data-i="${i}"><span class="key">${'ABCD'[k]}</span>${esc(q.o[i])}</button>`).join('')}</div>
         <div class="quiz-fb"></div>
       </div>`;
+    $('.qauto', container).onclick = () => { if (demoAuto.on) stopDemoAuto(); else startDemoAuto(container); $$('.qauto', container).forEach(x => x.textContent = demoAuto.on ? '⏹ Detener' : '🎲 Contestar automático'); };
     $$('.opt', container).forEach(b => b.onclick = () => {
       const i = +b.dataset.i, correct = i === q.a;
       results.push({ q, correct });
@@ -361,9 +358,7 @@ function viewDiag(el, param) {
     e.preventDefault();
     const f = new FormData(e.target);
     COMP_IDS.forEach(c => S.selfAssess[c] = +f.get(c));
-    el.innerHTML = `<div class="page-head"><div><span class="eyebrow">Paso 2 de 2</span><h1>Quiz adaptativo</h1><p class="muted">La dificultad se ajusta a tus respuestas: si aciertas sube, si fallas baja.</p></div>
-      <button class="btn demo-btn" type="button" id="simQuiz">${demoAuto.on ? '⏹ Detener simulación' : '🎲 Simular respuestas (demo)'}</button></div><div id="qz"></div>`;
-    $('#simQuiz').onclick = () => { if (demoAuto.on) stopDemoAuto(); else startDemoAuto($('#qz')); $('#simQuiz').textContent = demoAuto.on ? '⏹ Detener simulación' : '🎲 Simular respuestas (demo)'; };
+    el.innerHTML = `<div class="page-head"><div><span class="eyebrow">Paso 2 de 2</span><h1>Quiz adaptativo</h1><p class="muted">La dificultad se ajusta a tus respuestas: si aciertas sube, si fallas baja.</p></div></div><div id="qz"></div>`;
     const used = new Set();
     runQuiz($('#qz'), {
       total: COMP_IDS.length * 2, label: 'Diagnóstico',
@@ -1146,22 +1141,22 @@ function dashSupervisor(el) {
       ${S.unanswered.length ? `<li class="info"><b>Brechas de contenido:</b> ${S.unanswered.length} pregunta(s) al asistente sin fuente autorizada → enviar a especialista.</li>` : ''}
     </ul></div>
     <div class="card"><h3>Mapa de calor de competencias</h3><div class="tscroll"><table class="tbl heat">
-      <thead><tr><th>Técnico</th><th>Taller</th><th>Rol</th>${COMPETENCIAS.map(c => `<th title="${esc(c.name)}">${c.icon} ${esc(c.short)}</th>`).join('')}<th>Pre→Post→Dif.</th><th>Viol.</th><th>XP</th></tr></thead>
+      <thead><tr><th>Técnico</th><th>Taller</th><th>Rol</th>${COMPETENCIAS.map(c => `<th title="${esc(c.name)}">${c.icon} ${esc(c.short)}</th>`).join('')}<th>Pre→Post→Dif.</th><th>Viol.</th></tr></thead>
       <tbody>${(teamFilter.all ? team : team.slice(0, 12)).map(t => `<tr class="${t.me ? 'me' : ''}"><td><b>${esc(t.name)}</b></td><td class="small">${esc((t.taller || '').split(' · ')[0])}</td><td class="small">${esc(ROLES[t.role].name)}</td>
         ${COMP_IDS.map(c => `<td class="hc" style="background:${heat(t.m[c])}">${t.m[c]}</td>`).join('')}
-        <td class="small">${t.pre} → ${t.post ?? '—'} → ${t.delayed ?? '—'}</td><td>${t.viol ? `<span class="tag bad">${t.viol}</span>` : '0'}</td><td>${t.xp}</td></tr>`).join('')}
-      <tr class="avg"><td><b>Promedio</b></td><td></td><td></td>${teamAvg.map(v => `<td class="hc" style="background:${heat(v)}">${v}</td>`).join('')}<td></td><td></td><td></td></tr></tbody></table></div>
+        <td class="small">${t.pre} → ${t.post ?? '—'} → ${t.delayed ?? '—'}</td><td>${t.viol ? `<span class="tag bad">${t.viol}</span>` : '0'}</td></tr>`).join('')}
+      <tr class="avg"><td><b>Promedio</b></td><td></td><td></td>${teamAvg.map(v => `<td class="hc" style="background:${heat(v)}">${v}</td>`).join('')}<td></td><td></td></tr></tbody></table></div>
       <div class="row">${team.length > 12 ? `<button class="btn ghost" id="allRows">${teamFilter.all ? 'Ver menos' : `Ver los ${team.length} técnicos`}</button>` : ''}<button class="btn ghost" id="csv">⬇ Exportar CSV</button></div></div>
     <div class="grid g-1-1">
       <div class="card"><h3>Perfil del equipo</h3>${Charts.radar({ size: 260, labels: COMPETENCIAS.map(c => c.short), series: [{ name: 'Promedio del equipo', values: teamAvg, color: C.team }] })}</div>
-      <div class="card"><h3>🏆 Ranking (gamificación)</h3><ol class="rank">${[...team].sort((a, b) => b.xp - a.xp).slice(0, 10).map(t => `<li class="${t.me ? 'me' : ''}"><span>${esc(t.name)}</span><b>${t.xp} XP</b></li>`).join('')}</ol>
+      <div class="card"><h3>🏆 Ranking por dominio</h3><ol class="rank">${[...team].map(t => ({ ...t, dom: round(avg(COMP_IDS.map(c => t.m[c]))) })).sort((a, b) => b.dom - a.dom).slice(0, 10).map(t => `<li class="${t.me ? 'me' : ''}"><span>${esc(t.name)}</span><b>${t.dom} / 100</b></li>`).join('')}</ol>
         <h4>Errores más frecuentes del equipo</h4><ul class="errs">${topErr.map(([k, n]) => `<li><span class="n">${n}</span>${esc(ERROR_LABELS[k] || k)}</li>`).join('')}</ul></div>
     </div>`;
   bindTeamFilters(el, redraw);
   const ar = $('#allRows', el); if (ar) ar.onclick = () => { teamFilter.all = !teamFilter.all; redraw(); };
   $('#csv').onclick = () => {
-    const head = ['tecnico', 'taller', 'rol', ...COMP_IDS, 'pre', 'post', 'diferida', 'violaciones', 'xp'];
-    const rows = team.map(t => [t.name, t.taller || '', ROLES[t.role].name, ...COMP_IDS.map(c => t.m[c]), t.pre, t.post ?? '', t.delayed ?? '', t.viol, t.xp]);
+    const head = ['tecnico', 'taller', 'rol', ...COMP_IDS, 'pre', 'post', 'diferida', 'violaciones'];
+    const rows = team.map(t => [t.name, t.taller || '', ROLES[t.role].name, ...COMP_IDS.map(c => t.m[c]), t.pre, t.post ?? '', t.delayed ?? '', t.viol]);
     download('equipo_competencias.csv', [head, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n'), 'text/csv');
   };
 }
@@ -1282,8 +1277,7 @@ function loadDemo() {
 
 /* ---------------- Arranque ---------------- */
 function init() {
-  $('#plus1').onclick = () => advanceDays(1);
-  $('#plus7').onclick = () => advanceDays(7);
+
   $('#menuBtn').onclick = () => document.body.classList.toggle('nav-open');
   $('#moreBtn').onclick = () => document.body.classList.toggle('nav-open');
   $('#scrim').onclick = () => document.body.classList.remove('nav-open');
@@ -2062,7 +2056,7 @@ function runSenala(el, pr) {
       <div><span class="modcode">SEÑALA LA PIEZA · ${N} PASOS</span><h1>${pr.icon} ${esc(pr.title)}</h1><small class="muted">${esc(pr.subtitle)}</small></div>
     </div>
     <div class="idwrap">
-      <div class="id-top"><span class="chip" id="idStep">Paso 1 de ${N}</span><div class="progress"><i id="idProg" style="width:0%"></i></div><span class="chip orange" id="idPts">⭐ 0</span></div>
+      <div class="id-top"><span class="chip" id="idStep">Paso 1 de ${N}</span><div class="progress"><i id="idProg" style="width:0%"></i></div></div>
       <div class="id-prompt" id="idPrompt"></div>
       <div class="id-body">
       <aside class="tl" id="tl" aria-label="Línea del tiempo del proceso">
@@ -2154,7 +2148,6 @@ function runSenala(el, pr) {
     const s = pr.steps[st.i];
     $('#idStep').textContent = `Paso ${st.i + 1} de ${N}`;
     $('#idProg').style.width = (st.i / N * 100) + '%';
-    $('#idPts').textContent = `⭐ ${st.pts}`;
     $('#idPrompt').innerHTML = `
       <span class="id-num">${st.i + 1}</span>
       <div class="id-say"><b>${esc(s.say)}</b>
@@ -2189,7 +2182,7 @@ function runSenala(el, pr) {
     scene.hint = null;
     scene.flash(s.target, '#22c55e', 900);
     scene.labels = { ...scene.labels, [s.target]: nm(s.target) };
-    msg('ok', st.revealed ? `Ahí está: ${esc(nm(s.target))}` : `✔ ¡Correcto! +${got} ⭐`);
+    msg('ok', st.revealed ? `Ahí está: ${esc(nm(s.target))}` : '✔ ¡Correcto!');
     if (s.question) { st.phase = 'question'; return drawQuestion(); }
     learn();
   }

@@ -1,5 +1,5 @@
 /* Service worker: la app funciona sin conexión (cache-first del shell) */
-const CACHE = 'tdm-v11';
+const CACHE = 'tdm-v12';
 const ASSETS = ['./', './index.html', './css/styles.css', './js/data.js', './js/data-taller.js', './js/data-sims.js', './js/data-senala.js', './js/data-equipo.js', './js/data-modelos.js', './js/engine3d.js', './js/charts.js', './js/app.js', './manifest.json', './icons/icon.svg'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener('activate', e => {

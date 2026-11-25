@@ -933,3 +933,5 @@ b.bad { color: var(--bad); }
 .opt.demo-hover { border-color: #7c3aed; background: #f5f3ff; box-shadow: 0 0 0 3px rgba(124, 58, 237, .25); transform: translateX(4px); }
 .sa-row.demo-pick { animation: demopick .6s ease; }
 @keyframes demopick { 0% { background: #ede9fe; } 100% { background: transparent; } }
+.quiz-head .qauto { margin-left: auto; }
+.quiz-head { gap: 8px; }
