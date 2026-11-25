@@ -2521,75 +2521,110 @@ function attachHandControl(stage, scene) {
   const W = 48, H = 36, work = document.createElement('canvas');
   work.width = W; work.height = H;
   const wctx = work.getContext('2d', { willReadFrequently: true });
-  let stream = null, raf = 0, prev = null;
-  // estado del seguimiento: posición suavizada de la mano, ancla al reaparecer y objetivo de rotación
-  let hand = null, anchor = null, base = null, target = null, lost = 99;
+  let stream = null, raf = 0, vfc = 0, prev = null, hist = null;
+  // estado del seguimiento: mano filtrada, ancla al reaparecer, objetivo y resorte de rotación
+  let hand = null, anchor = null, base = null, target = null, lost = 99, lastSample = 0;
+  const spring = { vy: 0, vp: 0 };
+
+  /* Filtro One Euro: suaviza mucho con movimientos lentos y casi no retrasa los rápidos */
+  const oneEuro = (minCutoff = 1.2, beta = 0.9, dCutoff = 1.0) => {
+    let x = null, dx = 0;
+    const alpha = (cut, dt) => 1 / (1 + 1 / (2 * Math.PI * cut * dt));
+    return {
+      reset() { x = null; dx = 0; },
+      filter(v, dt) {
+        if (x === null) { x = v; return v; }
+        const ad = alpha(dCutoff, dt); dx = ad * ((v - x) / dt) + (1 - ad) * dx;
+        const a = alpha(minCutoff + beta * Math.abs(dx), dt); x = a * v + (1 - a) * x;
+        return x;
+      },
+    };
+  };
+  const fx = oneEuro(), fy = oneEuro();
 
   async function start() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      toast('{{i:camera}} Este navegador no permite usar la cámara aquí. Abre la app con localhost (python3 -m http.server).'); return;
+      toast('Este navegador no permite usar la cámara aquí. Abre la app con localhost (python3 -m http.server).'); return;
     }
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 30 } }, audio: false });
     } catch (e) {
-      toast(e && e.name === 'NotAllowedError' ? '{{i:camera}} Permiso de cámara denegado. Actívalo en el candado de la barra de direcciones.' : '{{i:camera}} No se pudo abrir la cámara en esta página.');
+      toast(e && e.name === 'NotAllowedError' ? 'Permiso de cámara denegado. Actívalo en el candado de la barra de direcciones.' : 'No se pudo abrir la cámara en esta página.');
       return;
     }
     pip.hidden = false; btn.classList.add('on'); scene.autoRotate = false;
     video.srcObject = stream;
     video.play().catch(() => { /* el ciclo espera a que haya imagen */ });
-    prev = null; hand = anchor = base = target = null; lost = 99;
-    loop();
+    prev = hist = null; hand = anchor = base = target = null; lost = 99; spring.vy = spring.vp = 0; fx.reset(); fy.reset();
+    // analizar exactamente una vez por cada cuadro nuevo de la cámara (si el navegador lo permite)
+    if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+      const onFrame = (now) => { if (!stream) return; sample(now); vfc = video.requestVideoFrameCallback(onFrame); };
+      vfc = video.requestVideoFrameCallback(onFrame);
+    }
+    lastT = performance.now();
+    loop(lastT);
   }
   function stop() {
     cancelAnimationFrame(raf);
+    if (vfc && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(vfc);
     if (stream) stream.getTracks().forEach(t => t.stop());
     stream = null; pip.hidden = true; btn.classList.remove('on'); dot.style.display = 'none';
   }
-  let lastT = 0;
   function analyze() {
     wctx.drawImage(video, 0, 0, W, H);
     const px = wctx.getImageData(0, 0, W, H).data;
-    const gray = new Float32Array(W * H);
-    for (let i = 0; i < W * H; i++) gray[i] = (px[i * 4] * 3 + px[i * 4 + 1] * 6 + px[i * 4 + 2]) / 10;
-    if (!prev) { prev = gray; return null; }
-    // centro del movimiento ponderado por la intensidad del cambio (menos sensible al ruido)
-    let n = 0, wsum = 0, sx = 0, sy = 0;
+    const N = W * H, gray = new Float32Array(N);
+    for (let i = 0; i < N; i++) gray[i] = (px[i * 4] * 3 + px[i * 4 + 1] * 6 + px[i * 4 + 2]) / 10;
+    if (!prev) { prev = gray; hist = new Float32Array(N); return null; }
+    // memoria de movimiento: cada píxel que cambió se "enciende" y se apaga poco a poco;
+    // así se cubre la mano completa y no solo sus bordes, y el centro no brinca
+    let changed = 0, wsum = 0, sx = 0, sy = 0;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = y * W + x, d = Math.abs(gray[i] - prev[i]);
-      if (d > 18) { n++; const wgt = d - 18; wsum += wgt; sx += x * wgt; sy += y * wgt; }
+      if (d > 16) { changed++; hist[i] = Math.min(1, hist[i] * 0.6 + (d - 16) / 40); } else hist[i] *= 0.8;
+      const w = hist[i] * hist[i];
+      if (w > 0.02) { wsum += w; sx += x * w; sy += y * w; }
     }
-    // el fondo se actualiza poco a poco: el movimiento lento de la mano sigue contando
-    for (let i = 0; i < W * H; i++) prev[i] = prev[i] * 0.5 + gray[i] * 0.5;
-    if (n < 12 || n > W * H * 0.5 || !wsum) return null;              // ruido o cambio brusco de luz
-    return { x: 1 - (sx / wsum) / (W - 1), y: (sy / wsum) / (H - 1) };  // espejo: como te ves en la cámara
+    for (let i = 0; i < N; i++) prev[i] = prev[i] * 0.4 + gray[i] * 0.6;
+    if (changed > N * 0.5) { hist.fill(0); return null; }                 // cambio brusco de luz
+    if (wsum < 3) return null;                                             // no hay movimiento suficiente
+    return { x: 1 - (sx / wsum) / (W - 1), y: (sy / wsum) / (H - 1) };    // espejo: como te ves en la cámara
   }
-  function loop(t = 0) {
-    raf = requestAnimationFrame(loop);
+  function sample(now) {
     if (!stream || video.readyState < 2) return;
-    if (t - lastT >= 33) {                                               // ~30 análisis por segundo
-      lastT = t;
-      const c = analyze();
-      if (c) {
-        if (lost > 10 || !hand) {                                        // la mano reaparece: re-anclar sin saltos
-          hand = { ...c }; anchor = { ...c }; base = { yaw: scene.yaw, pitch: scene.pitch };
-        } else {
-          hand.x += (c.x - hand.x) * 0.45; hand.y += (c.y - hand.y) * 0.45;
-        }
-        lost = 0;
-        target = { yaw: base.yaw - (hand.x - anchor.x) * 3.6, pitch: Math.min(1.35, Math.max(-0.15, base.pitch + (hand.y - anchor.y) * 1.8)) };
-        dot.style.display = 'block'; dot.style.left = (hand.x * 100) + '%'; dot.style.top = (hand.y * 100) + '%';
-        label.textContent = 'Siguiendo tu mano';
-      } else if (++lost > 10) {
-        target = null;                                                   // sin mano: el mouse vuelve a controlar
-        dot.style.display = 'none'; label.textContent = 'Mueve la mano frente a la cámara';
+    const dt = Math.min(0.1, Math.max(0.008, (now - (lastSample || now - 33)) / 1000));
+    lastSample = now;
+    const c = analyze();
+    if (c) {
+      if (lost > 8 || !hand) {                                            // la mano reaparece: re-anclar sin saltos
+        fx.reset(); fy.reset();
+        hand = { x: fx.filter(c.x, dt), y: fy.filter(c.y, dt) };
+        anchor = { ...hand }; base = { yaw: scene.yaw, pitch: scene.pitch };
+      } else {
+        hand = { x: fx.filter(c.x, dt), y: fy.filter(c.y, dt) };
       }
+      lost = 0;
+      target = { yaw: base.yaw - (hand.x - anchor.x) * 3.8, pitch: Math.min(1.35, Math.max(-0.15, base.pitch + (hand.y - anchor.y) * 1.9)) };
+      dot.style.display = 'block'; dot.style.transform = `translate(${hand.x * pip.clientWidth}px, ${hand.y * pip.clientHeight}px) translate(-50%, -50%)`;
+      label.textContent = 'Siguiendo tu mano';
+    } else if (++lost > 8) {
+      target = null;                                                       // sin mano: el mouse vuelve a controlar
+      dot.style.display = 'none'; label.textContent = 'Mueve la mano frente a la cámara';
     }
-    // el modelo se acerca suavemente al objetivo en cada cuadro (sin tirones)
+  }
+  let lastT = 0;
+  function loop(t) {
+    raf = requestAnimationFrame(loop);
+    if (!stream) return;
+    const dt = Math.min(0.05, Math.max(0.001, (t - lastT) / 1000)); lastT = t;
+    if (!('requestVideoFrameCallback' in HTMLVideoElement.prototype) && t - lastSample >= 33) sample(t);
+    // resorte críticamente amortiguado: llega suave al objetivo, sin rebotes ni tirones
     if (target) {
-      scene.yaw += (target.yaw - scene.yaw) * 0.16;
-      scene.pitch += (target.pitch - scene.pitch) * 0.16;
-    }
+      const w = 9, k = w * w, c = 2 * w;
+      spring.vy += ((target.yaw - scene.yaw) * k - spring.vy * c) * dt;
+      spring.vp += ((target.pitch - scene.pitch) * k - spring.vp * c) * dt;
+      scene.yaw += spring.vy * dt; scene.pitch += spring.vp * dt;
+    } else { spring.vy *= 0.85; spring.vp *= 0.85; scene.yaw += spring.vy * dt; scene.pitch = Math.min(1.35, Math.max(-0.15, scene.pitch + spring.vp * dt)); }
   }
   btn.addEventListener('click', () => (stream ? stop() : start()));
   $('.hclose', pip).onclick = stop;
