@@ -2510,6 +2510,7 @@ function viewModule(el, n) {
 function attachHandControl(stage, scene) {
   const tools = $('.vtools', stage);
   if (!tools) return;
+  if (isPhone()) return attachAR(stage, scene);          // en el celular: cámara trasera + realidad aumentada
   const btn = document.createElement('button');
   btn.className = 'vt'; btn.type = 'button'; btn.title = 'Mover el modelo con la mano (cámara)'; btn.innerHTML = '{{i:camera}}';
   tools.prepend(btn);
@@ -2628,5 +2629,130 @@ function attachHandControl(stage, scene) {
   }
   btn.addEventListener('click', () => (stream ? stop() : start()));
   $('.hclose', pip).onclick = stop;
+  cleanup.push(stop);
+}
+
+/* =========================================================
+   REALIDAD AUMENTADA (celular) — cámara trasera + sensores
+   El video de la cámara trasera queda de fondo y el motor se
+   dibuja encima. Con el giroscopio, el modelo se queda "fijo"
+   en el lugar donde lo pusiste: si mueves el celular a un lado,
+   el motor se desplaza en la pantalla como un objeto real.
+   ========================================================= */
+function isPhone() {
+  if (/[?&]ar=1/.test(location.search)) return true;
+  const coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches;
+  return coarse || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+/* Orientación del teléfono -> ejes de la pantalla en el mundo (x = este, y = norte, z = arriba) */
+function deviceAxes(o) {
+  const r = Math.PI / 180, A = (o.alpha || 0) * r, B = (o.beta || 0) * r, G = (o.gamma || 0) * r;
+  const cA = Math.cos(A), sA = Math.sin(A), cB = Math.cos(B), sB = Math.sin(B), cG = Math.cos(G), sG = Math.sin(G);
+  const right = [cA * cG - sA * sB * sG, sA * cG + cA * sB * sG, -cB * sG];
+  const up = [-sA * cB, cA * cB, sB];
+  const fwd = [-(cA * sG + sA * sB * cG), -(sA * sG - cA * sB * cG), -(cB * cG)];   // hacia donde mira la cámara trasera
+  const a = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * r;
+  const ca = Math.cos(a), sa = Math.sin(a);
+  return {
+    fwd,
+    right: right.map((v, i) => ca * v - sa * up[i]),
+    up: right.map((v, i) => sa * v + ca * up[i]),
+  };
+}
+
+function attachAR(stage, scene) {
+  const tools = $('.vtools', stage);
+  const btn = document.createElement('button');
+  btn.className = 'vt arbtn'; btn.type = 'button'; btn.title = 'Ver en realidad aumentada (cámara trasera)';
+  btn.innerHTML = '{{i:camera}}<b>AR</b>';
+  tools.prepend(btn);
+  const hud = document.createElement('div');
+  hud.className = 'arhud'; hud.hidden = true;
+  hud.innerHTML = `<div class="arbar"><span class="arlive"><i></i>Realidad aumentada</span>
+      <button type="button" class="arbtn2" data-ar="center">Traer al centro</button>
+      <button type="button" class="arclose" aria-label="Salir de realidad aumentada">✕</button></div>
+    <div class="artip">Apunta a una mesa o al piso. Mueve el celular para mirar alrededor · arrastra para girar el motor · pellizca para cambiar el tamaño.</div>
+    <div class="aredge" hidden><span>›</span></div>`;
+  stage.appendChild(hud);
+  const tip = $('.artip', hud), edge = $('.aredge', hud);
+  let stream = null, video = null, raf = 0, ori = null, gyro = false, anchor = null, tipT = 0;
+  const view = { ox: 0, oy: 0, rot: 0 };
+  const onOri = e => { if (e.alpha == null && e.beta == null) return; ori = { alpha: e.alpha, beta: e.beta, gamma: e.gamma }; gyro = true; };
+
+  async function start() {
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast('Para usar la cámara del celular la página debe abrirse con https (por ejemplo, publicada en GitHub Pages o Netlify).');
+      return;
+    }
+    // iPhone: el permiso de sensores debe pedirse justo al tocar el botón
+    let perm = Promise.resolve('granted');
+    try {
+      if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') perm = DeviceOrientationEvent.requestPermission().catch(() => 'denied');
+    } catch (e) { perm = Promise.resolve('denied'); }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    } catch (e) {
+      toast(e && e.name === 'NotAllowedError' ? 'Permiso de cámara denegado. Actívalo en los ajustes del navegador.' : 'No se pudo abrir la cámara trasera.');
+      return;
+    }
+    video = document.createElement('video');
+    video.className = 'arvideo'; video.setAttribute('playsinline', ''); video.muted = true; video.autoplay = true;
+    video.srcObject = stream;
+    stage.prepend(video);
+    video.play().catch(() => {});
+    stage.classList.add('ar-on'); btn.classList.add('on'); hud.hidden = false;
+    scene.noGrid = true; scene.autoRotate = false;
+    anchor = null; ori = null; gyro = false; view.ox = view.oy = view.rot = 0;
+    tip.hidden = false; tip.textContent = 'Apunta a una mesa o al piso. Mueve el celular para mirar alrededor · arrastra para girar el motor · pellizca para cambiar el tamaño.';
+    clearTimeout(tipT); tipT = setTimeout(() => { tip.hidden = true; }, 7000);
+    window.addEventListener('deviceorientation', onOri);              // si no hay permiso simplemente no llegan datos
+    perm.then(() => setTimeout(() => { if (stream && !gyro) { tip.hidden = false; tip.textContent = 'Este celular no compartió sus sensores de movimiento: arrastra para girar el motor y pellizca para cambiar el tamaño.'; } }, 1500));
+    loop();
+  }
+  function stop() {
+    cancelAnimationFrame(raf); clearTimeout(tipT);
+    window.removeEventListener('deviceorientation', onOri);
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null;
+    if (video) { video.remove(); video = null; }
+    stage.classList.remove('ar-on'); btn.classList.remove('on'); hud.hidden = true; edge.hidden = true;
+    scene.noGrid = false; scene.view = null;
+  }
+  // ángulo más corto entre dos giros (evita que dé la vuelta completa)
+  const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+  function loop() {
+    raf = requestAnimationFrame(loop);
+    if (!stream) return;
+    if (!gyro || !ori) { scene.view = null; return; }         // sin sensores: la cámara queda de fondo y se gira con el dedo
+    const ax = deviceAxes(ori);
+    if (!anchor) anchor = ax.fwd.slice();                         // el motor aparece donde apuntas al empezar
+    const dotp = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    const w = stage.clientWidth, h = stage.clientHeight;
+    const F = 0.5 * Math.hypot(w, h) / Math.tan(37 * Math.PI / 180);   // campo de visión típico de la cámara trasera
+    const z = dotp(anchor, ax.fwd), xs = dotp(anchor, ax.right), ys = dotp(anchor, ax.up);
+    let tx, ty;
+    if (z > 0.08) { tx = xs / z * F; ty = -ys / z * F; }
+    else { const k = Math.hypot(xs, ys) || 1; tx = xs / k * w * 2; ty = -ys / k * h * 2; }   // está detrás: fuera de la pantalla
+    // inclinación del celular: el motor se mantiene derecho respecto al piso
+    const u = ax.right[2], v = ax.up[2];
+    const trot = Math.hypot(u, v) > 0.25 ? Math.atan2(u, v) : view.rot;
+    // suavizado ligero (los sensores tiemblan un poco)
+    const k = 0.35;
+    view.ox += (tx - view.ox) * k; view.oy += (ty - view.oy) * k; view.rot += angDiff(trot, view.rot) * k;
+    scene.view = view;
+    // indicador en el borde cuando el motor quedó fuera de la vista
+    const off = Math.abs(view.ox) > w * 0.55 || Math.abs(view.oy) > h * 0.55;
+    edge.hidden = !off;
+    if (off) {
+      const ang = Math.atan2(view.oy, view.ox);
+      const ex = Math.max(28, Math.min(w - 28, w / 2 + Math.cos(ang) * w)), ey = Math.max(70, Math.min(h - 28, h / 2 + Math.sin(ang) * h));
+      edge.style.transform = `translate(${ex}px, ${ey}px) translate(-50%, -50%) rotate(${ang}rad)`;
+    }
+  }
+  btn.addEventListener('click', () => (stream ? stop() : start()));
+  $('.arclose', hud).onclick = stop;
+  $('[data-ar="center"]', hud).onclick = () => { if (ori) anchor = deviceAxes(ori).fwd.slice(); view.ox = view.oy = 0; };
+  edge.onclick = () => $('[data-ar="center"]', hud).click();
   cleanup.push(stop);
 }

@@ -21,6 +21,10 @@ Para probarlo en el teléfono, conéctalo a la misma red Wi-Fi y abre `http://IP
 ```
 index.html          Shell de la app (barra lateral, barra superior, contenedor de vistas)
 css/styles.css      Estilos (tema oscuro "taller", responsive para móvil)
+js/data-modelos.js  Garage: 6 modelos de autobús de referencia, grupos de función 2–9 y qué
+                    práctica pertenece a cada grupo según la propulsión
+js/data-equipo.js   Equipo simulado: 40 técnicos en 4 talleres con errores, respuestas y pasos
+                    fallados (semilla fija) para el análisis de errores comunes
 js/data-senala.js   Señala la pieza: motor 3D a gas natural (cambio de bujía) y banco de baterías,
                     pasos de identificación con 3 intentos
 js/data-sims.js     Aprende haciendo: escenas 3D de acercamiento (inversor, manguera de intercooler,
@@ -44,7 +48,7 @@ sw.js, manifest.json  PWA: caché offline e instalación en el teléfono
 | 2 | Ruta adaptativa | **Mi ruta** | Prioridad = brecha × peso del rol. Seguridad AV es obligatoria si el dominio es < 70. Se recalcula después de cada lección, práctica, repaso o evaluación (incluye el olvido). |
 | 3 | Módulo práctico | **⭐ Practicar** → **Señala la pieza**, **Aprende haciendo**, **Taller virtual**, **Simulador de fallas** y **Modelo 3D** | **Señala la pieza:** el proceso de cambio de bujía tiene 12 pasos sobre un motor 3D ("Señala el borne negativo", "Señala la bobina del cilindro 1", "Señala la bujía", "Señala la llave de torque"…). Hay 3 intentos por paso: cada error se marca en rojo y dice qué pieza tocaste; al segundo error aparece una pista, y al tercero el modelo marca la pieza correcta. Después de cada acierto se explica qué es la pieza y por qué se hace ese paso. **Aprende haciendo:** 3 módulos con tres fases. *Saber* es una micro-cápsula con flujo, riesgos y valores clave, más una pregunta de comprobación. *Hacer* empieza con el mini-juego "Arma tu kit" (con trampas) y sigue con la simulación guiada sobre un acercamiento 3D de las piezas: el inversor con tapa, 4 tornillos en cruz, MSD y barra colectora; la manguera del intercooler con abrazaderas; el banco de baterías de 24 V. *Demostrar* repite el proceso sin pistas, con 5 vidas y cronómetro. Cada error pone la pieza en rojo, enrojece la escena, resta vidas y explica el porqué; las violaciones de seguridad restan 2 vidas y reprueban. Al final hay calificación con estrellas.  **Taller virtual:** 5 procedimientos de reparación (desenergizar y bloquear AV, reemplazar arnés AV, manguera del intercooler, regeneración de DPF, red CAN) con lista de tareas; el técnico toma la herramienta, la aplica sobre la pieza del modelo 3D en el orden correcto, responde decisiones, captura torques y espera tiempos (descarga, regeneración). Las piezas se retiran e instalan con animación, los instrumentos muestran lecturas y hay modo guiado o modo evaluación. Reglas de seguridad: herramienta no aislada en AV, tocar AV sin EPP o intervenir sin verificar ausencia de tensión = violación crítica. **Simulador de fallas:** 3 escenarios con árbol de decisión sobre el modelo 3D (el componente se resalta): eléctrico con falla de aislamiento, diésel con baja sobrealimentación y red CAN. Rúbrica con intentos, errores, tiempo y **violaciones críticas de seguridad**. El escenario AV se bloquea si el técnico no tiene la competencia de seguridad. |
 | 4 | Pre / post / diferida | **Evaluaciones** | Pre = diagnóstico; post = forma paralela inmediata; diferida = se desbloquea 7 días simulados después. Calcula la **ganancia normalizada** (Hake) y la **retención** (diferida/post). |
-| 5 | Tablero | **Tablero** | Vista del técnico (KPI, radar, pre/post/diferida, errores recurrentes, curva de olvido, historial exportable en xAPI) y del supervisor (mapa de calor del equipo, alertas accionables, ranking, exportación CSV). |
+| 5 | Tablero | **Tablero** (Técnico · Equipo · Errores comunes) | Vista del técnico (KPI, radar, pre/post/diferida, errores recurrentes, curva de olvido, historial exportable en xAPI) y del supervisor (mapa de calor del equipo, alertas accionables, ranking, exportación CSV). |
 | 6 | Escalabilidad | **Escalabilidad** | Arquitectura, integración con la documentación técnica, escala, operación offline, protección de datos, VR/AR y plan de implementación. |
 
 ### Temas de interés que cubre
@@ -56,7 +60,7 @@ sw.js, manifest.json  PWA: caché offline e instalación en el teléfono
 - **Offline:** todo corre en el dispositivo (estado en `localStorage` y service worker).
 
 ## Navegación
-Menú principal: **Inicio · Mi ruta · Practicar · Evaluar · Asistente · Tablero** (y Escalabilidad). *Practicar* agrupa Señala la pieza, Aprende haciendo, Taller, Fallas y Modelo 3D; *Evaluar* agrupa Diagnóstico, Antes/después/diferida y Repasos. En el celular hay una barra inferior con las secciones principales y un botón **Más**.
+Menú principal: **Inicio · Mi ruta · Practicar · Evaluar · Asistente · Tablero** (y Escalabilidad). *Practicar* abre un **garage tipo videojuego** para elegir el autobús (7900 Electric, 7900 Electric Articulated, 7900 Hybrid, 8900, 9700 y 9800) y después los **grupos de función 2–9**; hoy solo están habilitados 2 · Motor y 3 · Sistema eléctrico, y cada uno muestra las prácticas que aplican a la propulsión del modelo. Además agrupa Señala la pieza, Aprende haciendo, Taller, Fallas y Modelo 3D; *Evaluar* agrupa Diagnóstico, Antes/después/diferida y Repasos. En el celular hay una barra inferior con las secciones principales y un botón **Más**.
 
 ## Guion sugerido para la demo (6 min)
 
@@ -75,3 +79,10 @@ Menú principal: **Inicio · Mi ruta · Practicar · Evaluar · Asistente · Tab
 
 ## Nota sobre el contenido
 El contenido técnico es **de ejemplo** y solo sirve para el prototipo. En producción, todo vendría de documentación autorizada por Volvo y validada por especialistas, como se describe en la sección *Escalabilidad*.
+
+## Cámara: control con la mano (computadora) y realidad aumentada (celular)
+
+- **En la computadora**, el botón de cámara en el visor 3D abre la cámara frontal y el modelo gira siguiendo el movimiento de la mano.
+- **En el celular**, el mismo botón dice **AR** y abre la **cámara trasera**: el motor, la batería y las piezas se dibujan encima de lo que ves. Con los sensores de movimiento del teléfono el modelo se queda "fijo" donde apuntaste: si mueves el celular, el motor se desplaza en la pantalla como un objeto real. Se puede seguir tocando piezas, arrastrar para girar y pellizcar para cambiar el tamaño. "Traer al centro" lo vuelve a poner enfrente; si queda fuera de la vista aparece una flecha naranja que indica hacia dónde está.
+- La cámara solo funciona en una página segura: `http://localhost` en la computadora, o **https** en el celular (por ejemplo, subiendo la carpeta a Netlify Drop o GitHub Pages). Abrir la IP de la computadora con `http://192.168…` desde el celular no permite usar la cámara.
+- Para probar el modo AR en la computadora: agrega `?ar=1` a la dirección (`http://localhost:8000/?ar=1#/senala/bujias`).
