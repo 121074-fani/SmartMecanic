@@ -107,7 +107,7 @@ function scenarioLocked(sc) {
 
 /* ---------------- Siguiente acción sugerida ---------------- */
 function nextAction() {
-  if (!S.tests.pre) return { route: 'diagnostico', title: 'Haz tu diagnóstico inicial', text: '14 preguntas adaptativas (≈8 min) para construir tu mapa de competencias.', cta: 'Empezar diagnóstico' };
+  if (!S.tests.pre) return { route: 'diagnostico', title: 'Haz tu diagnóstico inicial', text: '10 preguntas adaptativas (≈5 min) para construir tu mapa de competencias.', cta: 'Empezar diagnóstico' };
   if (dueReviews().length) return { route: 'repasos', title: `Tienes ${dueReviews().length} repaso(s) pendiente(s)`, text: 'La repetición espaciada es la forma más eficiente de no olvidar.', cta: 'Hacer repaso' };
   const done = Object.keys(S.lessonsDone).length;
   const r = computeRoute().find(l => !l.done);
@@ -228,6 +228,7 @@ function runQuiz(container, { total, next, onDone, label = '' }) {
 }
 /* ---------- Modo demo: contesta el quiz solo, con respuestas aleatorias visibles ---------- */
 const demoAuto = { on: false, timer: null };
+const DIAG_TOTAL = 10;
 function stopDemoAuto() { demoAuto.on = false; clearTimeout(demoAuto.timer); $$('.opt.demo-hover').forEach(o => o.classList.remove('demo-hover')); }
 function startDemoAuto(container) {
   demoAuto.on = true;
@@ -360,20 +361,24 @@ function viewDiag(el, param) {
     COMP_IDS.forEach(c => S.selfAssess[c] = +f.get(c));
     el.innerHTML = `<div class="page-head"><div><span class="eyebrow">Paso 2 de 2</span><h1>Quiz adaptativo</h1><p class="muted">La dificultad se ajusta a tus respuestas: si aciertas sube, si fallas baja.</p></div></div><div id="qz"></div>`;
     const used = new Set();
+    const w = ROLES[S.user.role].weights;
+    const followUps = [...COMP_IDS].sort((a, b) => w[b] - w[a]).slice(0, DIAG_TOTAL - COMP_IDS.length);
     runQuiz($('#qz'), {
-      total: COMP_IDS.length * 2, label: 'Diagnóstico',
+      // 10 preguntas: 1 de nivel medio por competencia (7) + 3 de seguimiento adaptativo
+      // en las competencias más importantes para el rol (si acierta sube a difícil, si falla baja a básico)
+      total: DIAG_TOTAL, label: 'Diagnóstico',
       next: res => {
-        const ci = Math.floor(res.length / 2);
-        if (ci >= COMP_IDS.length) return null;
-        const c = COMP_IDS[ci];
-        const lvl = res.length % 2 === 0 ? 2 : (res[res.length - 1].correct ? 3 : 1);
-        const q = pickQ(c, lvl, used); used.add(q.id); return q;
+        if (res.length >= DIAG_TOTAL) return null;
+        if (res.length < COMP_IDS.length) { const q = pickQ(COMP_IDS[res.length], 2, used); used.add(q.id); return q; }
+        const c = followUps[res.length - COMP_IDS.length];
+        const first = res.find(r => r.q.c === c);
+        const q = pickQ(c, first && first.correct ? 3 : 1, used); used.add(q.id); return q;
       },
       onDone: res => {
         const scores = {};
-        COMP_IDS.forEach((c, i) => {
-          const [a, b] = [res[i * 2], res[i * 2 + 1]];
-          scores[c] = a.correct ? (b.correct ? 100 : 70) : (b.correct ? 40 : 10);
+        COMP_IDS.forEach(c => {
+          const [a, b] = res.filter(r => r.q.c === c);
+          scores[c] = b ? (a.correct ? (b.correct ? 100 : 70) : (b.correct ? 40 : 10)) : (a.correct ? 75 : 25);
           touch(c, scores[c], 4);
         });
         S.tests.pre = { day: S.day, scores, avg: round(avg(Object.values(scores))), answers: res.map(r => ({ id: r.q.id, ok: r.correct })) };
@@ -2447,17 +2452,19 @@ function attachHandControl(stage, scene) {
   pip.innerHTML = '<video playsinline muted></video><i class="hdot"></i><span class="hlabel">Mueve la mano frente a la cámara</span><button type="button" class="hclose" aria-label="Apagar cámara">✕</button>';
   stage.appendChild(pip);
   const video = $('video', pip), dot = $('.hdot', pip), label = $('.hlabel', pip);
-  const W = 64, H = 48, work = document.createElement('canvas');
+  const W = 48, H = 36, work = document.createElement('canvas');
   work.width = W; work.height = H;
   const wctx = work.getContext('2d', { willReadFrequently: true });
-  let stream = null, raf = 0, prev = null, last = null, vx = 0, vy = 0, frame = 0;
+  let stream = null, raf = 0, prev = null;
+  // estado del seguimiento: posición suavizada de la mano, ancla al reaparecer y objetivo de rotación
+  let hand = null, anchor = null, base = null, target = null, lost = 99;
 
   async function start() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       toast('📷 Este navegador no permite usar la cámara aquí. Abre la app con localhost (python3 -m http.server).'); return;
     }
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } }, audio: false });
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 30 } }, audio: false });
     } catch (e) {
       toast(e && e.name === 'NotAllowedError' ? '📷 Permiso de cámara denegado. Actívalo en el candado de la barra de direcciones.' : '📷 No se pudo abrir la cámara en esta página.');
       return;
@@ -2465,7 +2472,7 @@ function attachHandControl(stage, scene) {
     pip.hidden = false; btn.classList.add('on'); scene.autoRotate = false;
     video.srcObject = stream;
     video.play().catch(() => { /* el ciclo espera a que haya imagen */ });
-    prev = null; last = null; vx = vy = 0;
+    prev = null; hand = anchor = base = target = null; lost = 99;
     loop();
   }
   function stop() {
@@ -2473,32 +2480,50 @@ function attachHandControl(stage, scene) {
     if (stream) stream.getTracks().forEach(t => t.stop());
     stream = null; pip.hidden = true; btn.classList.remove('on'); dot.style.display = 'none';
   }
-  function loop() {
-    raf = requestAnimationFrame(loop);
-    if (!stream || video.readyState < 2 || (frame++ & 1)) return;      // ~30 análisis por segundo
+  let lastT = 0;
+  function analyze() {
     wctx.drawImage(video, 0, 0, W, H);
     const px = wctx.getImageData(0, 0, W, H).data;
-    const gray = new Uint8Array(W * H);
+    const gray = new Float32Array(W * H);
     for (let i = 0; i < W * H; i++) gray[i] = (px[i * 4] * 3 + px[i * 4 + 1] * 6 + px[i * 4 + 2]) / 10;
-    let n = 0, sx = 0, sy = 0;
-    if (prev) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const i = y * W + x;
-      if (Math.abs(gray[i] - prev[i]) > 26) { n++; sx += x; sy += y; }
+    if (!prev) { prev = gray; return null; }
+    // centro del movimiento ponderado por la intensidad del cambio (menos sensible al ruido)
+    let n = 0, wsum = 0, sx = 0, sy = 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x, d = Math.abs(gray[i] - prev[i]);
+      if (d > 18) { n++; const wgt = d - 18; wsum += wgt; sx += x * wgt; sy += y * wgt; }
     }
-    prev = gray;
-    const moving = n > 20 && n < W * H * 0.45;                           // ignora ruido y cambios bruscos de luz
-    if (moving) {
-      const cx = (W - 1 - sx / n) / (W - 1), cy = (sy / n) / (H - 1);    // espejo: como te ves en la cámara
-      dot.style.display = 'block'; dot.style.left = (cx * 100) + '%'; dot.style.top = (cy * 100) + '%';
-      label.textContent = '✋ Detectando movimiento';
-      if (last) { vx = vx * 0.6 + (cx - last.x) * 0.4; vy = vy * 0.6 + (cy - last.y) * 0.4; }
-      last = { x: cx, y: cy };
-    } else {
-      vx *= 0.8; vy *= 0.8; last = null;
-      if (!n) { dot.style.display = 'none'; label.textContent = 'Mueve la mano frente a la cámara'; }
+    // el fondo se actualiza poco a poco: el movimiento lento de la mano sigue contando
+    for (let i = 0; i < W * H; i++) prev[i] = prev[i] * 0.5 + gray[i] * 0.5;
+    if (n < 12 || n > W * H * 0.5 || !wsum) return null;              // ruido o cambio brusco de luz
+    return { x: 1 - (sx / wsum) / (W - 1), y: (sy / wsum) / (H - 1) };  // espejo: como te ves en la cámara
+  }
+  function loop(t = 0) {
+    raf = requestAnimationFrame(loop);
+    if (!stream || video.readyState < 2) return;
+    if (t - lastT >= 33) {                                               // ~30 análisis por segundo
+      lastT = t;
+      const c = analyze();
+      if (c) {
+        if (lost > 10 || !hand) {                                        // la mano reaparece: re-anclar sin saltos
+          hand = { ...c }; anchor = { ...c }; base = { yaw: scene.yaw, pitch: scene.pitch };
+        } else {
+          hand.x += (c.x - hand.x) * 0.45; hand.y += (c.y - hand.y) * 0.45;
+        }
+        lost = 0;
+        target = { yaw: base.yaw - (hand.x - anchor.x) * 3.6, pitch: Math.min(1.35, Math.max(-0.15, base.pitch + (hand.y - anchor.y) * 1.8)) };
+        dot.style.display = 'block'; dot.style.left = (hand.x * 100) + '%'; dot.style.top = (hand.y * 100) + '%';
+        label.textContent = '✋ Siguiendo tu mano';
+      } else if (++lost > 10) {
+        target = null;                                                   // sin mano: el mouse vuelve a controlar
+        dot.style.display = 'none'; label.textContent = 'Mueve la mano frente a la cámara';
+      }
     }
-    if (Math.abs(vx) > 0.004) scene.yaw -= vx * 4.2;                     // izquierda / derecha → girar
-    if (Math.abs(vy) > 0.004) scene.pitch = Math.min(1.35, Math.max(-0.15, scene.pitch + vy * 2.4));   // arriba / abajo → inclinar
+    // el modelo se acerca suavemente al objetivo en cada cuadro (sin tirones)
+    if (target) {
+      scene.yaw += (target.yaw - scene.yaw) * 0.16;
+      scene.pitch += (target.pitch - scene.pitch) * 0.16;
+    }
   }
   btn.addEventListener('click', () => (stream ? stop() : start()));
   $('.hclose', pip).onclick = stop;
