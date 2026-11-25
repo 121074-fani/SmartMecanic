@@ -285,6 +285,12 @@ export function hubApi(opts: { file?: string; publicDir?: string; env?: Record<s
   return {
     name: 'fleet-hub-api',
     configureServer(server) {
+      // La app del técnico usa <link rel="stylesheet"> clásicos. Sin `Accept: text/css` (p. ej. el precache del
+      // service worker) Vite devolvería el CSS como módulo JS; `?direct` fuerza CSS crudo.
+      server.middlewares.use((req, _res, next) => {
+        if (req.method === 'GET' && req.url && /^\/tecnicos-del-manana\/.*\.css$/.test(req.url)) req.url += '?direct';
+        next();
+      });
       server.middlewares.use(handler);
     },
     configurePreviewServer(server) {
