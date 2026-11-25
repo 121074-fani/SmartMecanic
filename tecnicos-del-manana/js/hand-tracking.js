@@ -27,7 +27,8 @@
   var PINCH_REL_OFF = 0.46;
   var DRAG_PX = 18;             // desplazamiento con pinza que convierte el "toque" en "arrastre"
   var TAP_COOLDOWN = 600;       // debounce entre toques
-  var LOST_FRAMES = 6;          // cuadros sin mano antes de ocultar el puntero
+  var LOST_FRAMES = 15;         // ~0.5 s de gracia sin detección antes de dar la mano por perdida (el puntero queda atenuado)
+  var CONFIDENCE = 0.35;        // umbrales de MediaPipe (0.5 por defecto): sigue la mano con poca luz o movimiento rápido
   var CONNECTIONS = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12],
     [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]];
 
@@ -54,6 +55,9 @@
           baseOptions: { modelAssetPath: MODEL_URL, delegate: delegate },
           runningMode: 'VIDEO',
           numHands: 2,
+          minHandDetectionConfidence: CONFIDENCE,
+          minHandPresenceConfidence: CONFIDENCE,
+          minTrackingConfidence: CONFIDENCE,
         });
       };
       return hasWebGL2() ? make('GPU').catch(function () { return make('CPU'); }) : make('CPU');
@@ -264,7 +268,7 @@
       if (box) box.hidden = true;
       if (mobile) showBrand(false);
       btn.classList.remove('on');
-      hideTrackers(); removeShelf();
+      hideTrackers(); removeShelf(); scene.holes = null;
       octx.clearRect(0, 0, overlay.width, overlay.height);
       scene.hover = null;
       vel.x = vel.y = 0; zoom = null; twoPinch = false;
@@ -336,6 +340,24 @@
       t.pinched = t.dragging = t.zooming = t.open = false; t.pinchStart = t.prevPt = t.pt = t.thumb = t.cursor = t.aim = null; t.hist = [];
     }
     function hideTrackers() { list().forEach(hideTracker); }
+    /** puntero atenuado mientras la mano no se detecta (periodo de gracia): no se pierde la posición ni la pinza */
+    function fade(t, on) { t.dot.style.opacity = t.thumbDot.style.opacity = on ? '0.45' : ''; }
+    /**
+     * Con la cámara de fondo (celular), el modelo 3D se dibuja encima del video y tapa los dedos reales.
+     * Se abren "ventanas" suaves en el modelo alrededor del índice y del pulgar para verlos a través de él.
+     */
+    function punchHoles() {
+      if (mode !== 'background' || !scene.canvas) { scene.holes = null; return; }
+      var cr = scene.canvas.getBoundingClientRect(), k = scene.dpr || 1, holes = [];
+      visible().forEach(function (t) {
+        if (t.pinched) holes.push([(t.pt[0] - cr.left) * k, (t.pt[1] - cr.top) * k, 52 * k]);
+        else {
+          holes.push([(t.pt[0] - cr.left) * k, (t.pt[1] - cr.top) * k, 46 * k]);
+          if (t.thumb) holes.push([(t.thumb[0] - cr.left) * k, (t.thumb[1] - cr.top) * k, 34 * k]);
+        }
+      });
+      scene.holes = holes.length ? holes : null;
+    }
     function resetTrackers() { list().forEach(function (t) { hideTracker(t); t.fx.reset(); t.fy.reset(); t.gx.reset(); t.gy.reset(); t.missing = 99; }); }
     function removeTrackers() { list().forEach(function (t) { t.dot.remove(); t.thumbDot.remove(); t.badge.remove(); }); trackers = {}; }
     function place(el, cx, cy, r) { el.style.display = 'block'; el.style.transform = 'translate(' + (cx - r.left) + 'px,' + (cy - r.top) + 'px) translate(-50%, -50%)'; }
@@ -500,6 +522,7 @@
     function updateTracker(t, lm, dt, r, now) {
       if (t.missing > LOST_FRAMES) { t.fx.reset(); t.fy.reset(); t.gx.reset(); t.gy.reset(); t.hist = []; }
       t.missing = 0;
+      fade(t, false);
       var d = dist(lm[4], lm[8]), palm = dist(lm[0], lm[9]) || 1e-3;
       var was = t.pinched;
       if (!t.pinched && (d < PINCH_ON || d / palm < PINCH_REL_ON)) t.pinched = true;
@@ -562,10 +585,11 @@
       var r = stage.getBoundingClientRect();
       vScale = readVideoScale();
       if (!hands.length) {
+        list().forEach(function (t) { if (t.pt) { t.missing++; fade(t, true); } });
         if (++lost > LOST_FRAMES) {
           octx.clearRect(0, 0, overlay.width, overlay.height);
           if (visible().length) scene.hover = null;
-          hideTrackers(); zoom = null; twoPinch = false;
+          hideTrackers(); zoom = null; twoPinch = false; scene.holes = null;
           setStatus(mobile ? 'Muestra tus manos frente a la cámara · pinza para tocar · pinza sostenida para girar' : 'Muestra tus manos a la cámara');
         }
         return;
@@ -580,8 +604,12 @@
         updateTracker(t, lm, dt, r, now);
         drawn.push({ lm: lm, t: t });
       });
-      list().forEach(function (t) { if (!seen[t.key] && ++t.missing > LOST_FRAMES) hideTracker(t); });
+      list().forEach(function (t) {
+        if (seen[t.key] || !t.pt) return;
+        if (++t.missing > LOST_FRAMES) hideTracker(t); else fade(t, true);
+      });
       drawHands(drawn);
+      punchHoles();
 
       // dos manos en pinza: separarlas acerca el modelo, juntarlas lo aleja
       var pins = visible().filter(function (t) { return t.pinched; });
