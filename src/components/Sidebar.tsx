@@ -34,7 +34,7 @@ export default function Sidebar({
     <>
       {open && <div className="fixed inset-0 z-40 bg-base-950/60 backdrop-blur-[2px] lg:hidden" onClick={onClose} />}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 shrink-0 flex-col border-r border-base-700 bg-base-900 transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-64 lg:translate-x-0 ${
+        className={`nav-navy fixed inset-y-0 left-0 z-50 flex w-72 shrink-0 flex-col border-r border-base-700 bg-base-900 transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-64 lg:translate-x-0 ${
           open ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         }`}
       >

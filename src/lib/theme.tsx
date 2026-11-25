@@ -10,7 +10,7 @@ const readTheme = (): Theme => {
   } catch {
     /* almacenamiento no disponible */
   }
-  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  return 'light';
 };
 
 const ThemeCtx = createContext<{ theme: Theme; toggle: () => void }>({ theme: 'dark', toggle: () => {} });
@@ -32,8 +32,8 @@ export const useTheme = () => useContext(ThemeCtx);
 
 /** Colores de series validados (CVD + contraste) para cada superficie. */
 const CHART = {
-  dark: { s1: '#3987e5', s2: '#d95926', s3: '#199e70', grid: '#1f2d3b', axis: '#7b8a9a', surface: '#111a24', cursor: '#3fb8c0' },
-  light: { s1: '#2a78d6', s2: '#eb6834', s3: '#199e70', grid: '#e3e8ee', axis: '#64748b', surface: '#ffffff', cursor: '#137b83' },
+  dark: { s1: '#3987e5', s2: '#f5821f', s3: '#199e70', grid: '#1b3a5e', axis: '#8ea3bd', surface: '#0c2b4c', cursor: '#f5821f' },
+  light: { s1: '#2563eb', s2: '#f5821f', s3: '#16a34a', grid: '#e2e8f0', axis: '#64748b', surface: '#ffffff', cursor: '#c2600a' },
 };
 
 export const useChartColors = () => CHART[useTheme().theme];

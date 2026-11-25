@@ -10,7 +10,10 @@ export default {
         base: { 950: v('base-950'), 900: v('base-900'), 850: v('base-850'), 800: v('base-800'), 700: v('base-700'), 600: v('base-600'), 500: v('base-500') },
         // los tonos de texto neutros se invierten en modo claro
         slate: { 100: v('slate-100'), 200: v('slate-200'), 300: v('slate-300'), 400: v('slate-400'), 500: v('slate-500'), 600: v('slate-600'), 950: '#020617' },
-        petrol: { 300: '#7fd3d8', 400: '#3fb8c0', 500: '#1a9aa3', 600: '#137b83', 700: '#0f5e65', 900: '#0a3438' },
+        // acento de la marca: el naranja de "Técnicos del Mañana" (--accent #f5821f); se conserva el nombre de la escala
+        petrol: { 300: '#fdba74', 400: '#fb9a45', 500: '#f5821f', 600: '#e8740f', 700: '#c2600a', 900: '#7c3a06' },
+        // azul marino de la app del técnico (--navy / --navy2)
+        navy: { 700: '#123e6e', 800: '#0b2d52', 900: '#082340' },
       },
       fontFamily: {
         sans: ['Inter', 'Segoe UI', 'system-ui', 'sans-serif'],

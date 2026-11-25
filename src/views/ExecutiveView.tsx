@@ -165,7 +165,7 @@ export default function ExecutiveView({
                 />
                 <ReferenceLine y={PASS_THRESHOLD} stroke="#f59e0b" strokeDasharray="5 4" strokeOpacity={0.7} />
                 {[15, 30, 45, 60].map((d) => (
-                  <ReferenceLine key={d} x={d} stroke="#2a3b4c" strokeDasharray="2 4" />
+                  <ReferenceLine key={d} x={d} stroke="rgba(100,116,139,0.45)" strokeDasharray="2 4" />
                 ))}
                 {RETENTION_COHORTS.map((c, i) => (
                   <Line
@@ -242,7 +242,7 @@ export default function ExecutiveView({
                   tickFormatter={(v: string) => SHORT_CAT[v] ?? v}
                 />
                 <YAxis tick={{ fill: SERIES.axis, fontSize: 11 }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: 'rgba(63,184,192,0.06)' }} content={<ChartTooltip valueSuffix=" fallos" />} />
+                <Tooltip cursor={{ fill: 'rgba(245,130,31,0.08)' }} content={<ChartTooltip valueSuffix=" fallos" />} />
                 <Bar isAnimationActive={CHART_ANIM} dataKey="Taller" stackId="e" fill={SERIES.s1} stroke={SERIES.surface} strokeWidth={2} radius={[0, 0, 4, 4]} />
                 <Bar isAnimationActive={CHART_ANIM} dataKey="Rescate en Ruta" stackId="e" fill={SERIES.s2} stroke={SERIES.surface} strokeWidth={2} radius={[4, 4, 0, 0]} />
               </BarChart>

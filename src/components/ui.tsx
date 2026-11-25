@@ -5,14 +5,14 @@ import type { LexicalLevel, ModuleSection, RiskLevel, Specialty } from '../types
 /** `?static` en la URL desactiva animaciones de gráficas (capturas, impresión). */
 export const CHART_ANIM = !new URLSearchParams(window.location.search).has('static');
 
-/** Colores de series de gráficas (validados para CVD sobre superficie #111a24). */
+/** Colores de series de gráficas (paleta de "Técnicos del Mañana": azul, naranja de acento y verde). */
 export const SERIES = {
   s1: '#3987e5',
-  s2: '#d95926',
+  s2: '#f5821f',
   s3: '#199e70',
-  grid: '#1f2d3b',
-  axis: '#7b8a9a',
-  surface: '#111a24',
+  grid: '#1b3a5e',
+  axis: '#8ea3bd',
+  surface: '#0c2b4c',
 };
 
 export function KpiCard({

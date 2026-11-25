@@ -2,43 +2,67 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Tokens de tema (canales RGB para soportar opacidad /xx de Tailwind) ── */
+/* ── Tokens de tema (canales RGB para soportar opacidad /xx de Tailwind) ──
+   Paleta alineada con "Técnicos del Mañana": azul marino #0b2d52, acento naranja #f5821f,
+   fondo #eef2f7, tarjetas blancas y texto #0f2a4a. El modo oscuro usa la misma familia de azul marino. */
 :root {
   color-scheme: dark;
   --fg: 255 255 255;
-  --base-950: 7 12 18;
-  --base-900: 11 18 26;
-  --base-850: 15 24 33;
-  --base-800: 17 26 36;
-  --base-700: 26 38 51;
-  --base-600: 36 52 68;
-  --base-500: 52 73 94;
+  --base-950: 6 24 44;
+  --base-900: 8 32 58;
+  --base-850: 10 38 68;
+  --base-800: 12 43 76;
+  --base-700: 25 62 102;
+  --base-600: 38 80 125;
+  --base-500: 64 104 148;
   --slate-100: 241 245 249;
   --slate-200: 226 232 240;
   --slate-300: 203 213 225;
-  --slate-400: 148 163 184;
-  --slate-500: 100 116 139;
-  --slate-600: 71 85 105;
-  --scroll-thumb: #243444;
+  --slate-400: 160 178 200;
+  --slate-500: 120 141 168;
+  --slate-600: 84 106 135;
+  --scroll-thumb: #1e4470;
 }
 html.light {
   color-scheme: light;
-  --fg: 11 18 26;
-  --base-950: 240 243 246;
-  --base-900: 255 255 255;
-  --base-850: 246 248 250;
+  --fg: 15 42 74;            /* --text */
+  --base-950: 238 242 247;   /* --bg */
+  --base-900: 255 255 255;   /* --card */
+  --base-850: 246 248 251;   /* --bg2 */
   --base-800: 255 255 255;
-  --base-700: 223 229 236;
-  --base-600: 200 210 220;
-  --base-500: 150 165 180;
-  --slate-100: 15 23 42;
-  --slate-200: 30 41 59;
-  --slate-300: 51 65 85;
+  --base-700: 226 232 240;   /* --line */
+  --base-600: 203 213 225;
+  --base-500: 148 163 184;
+  --slate-100: 11 45 82;     /* --navy */
+  --slate-200: 15 42 74;     /* --text */
+  --slate-300: 30 58 95;
   --slate-400: 71 85 105;
-  --slate-500: 100 116 139;
+  --slate-500: 100 116 139;  /* --muted */
   --slate-600: 148 163 184;
-  --scroll-thumb: #c8d2dc;
+  --scroll-thumb: #cbd5e1;
 }
+
+/* Barra lateral y barra superior: siempre azul marino con texto claro, como en la app del técnico.
+   Se redefinen los tokens solo dentro de estos contenedores (en ambos modos). */
+.nav-navy {
+  --fg: 255 255 255;
+  --base-950: 11 45 82;
+  --base-900: 11 45 82;
+  --base-850: 18 62 110;
+  --base-800: 18 62 110;
+  --base-700: 32 78 128;
+  --base-600: 52 98 150;
+  --base-500: 80 122 170;
+  --slate-100: 255 255 255;
+  --slate-200: 241 245 249;
+  --slate-300: 222 230 240;
+  --slate-400: 190 205 222;
+  --slate-500: 160 180 204;
+  --slate-600: 120 145 175;
+  color-scheme: dark;
+}
+aside.nav-navy, .nav-navy.nav-gradient { background: linear-gradient(180deg, #0b2d52, #082340); }
+header.nav-navy { background: #0b2d52; box-shadow: 0 2px 10px rgba(11, 45, 82, 0.18); border-color: transparent; }
 
 body { @apply bg-base-950 text-slate-200 antialiased transition-colors duration-300; font-feature-settings: 'tnum' 1; }
 
@@ -57,13 +81,18 @@ body { @apply bg-base-950 text-slate-200 antialiased transition-colors duration-
 }
 
 /* ── Modo claro: los acentos claros (pensados para fondo oscuro) se oscurecen para mantener contraste ── */
-html.light .card { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
-html.light :is(.text-petrol-200, .text-petrol-300, .text-petrol-400) { color: #0f5e65; }
+html.light .card { box-shadow: 0 1px 2px rgba(15, 42, 74, 0.06), 0 6px 20px -8px rgba(15, 42, 74, 0.12); }   /* --shadow de la app del técnico */
+html.light :is(.text-petrol-200, .text-petrol-300, .text-petrol-400) { color: #c2600a; }
 html.light :is(.text-amber-100\/90, .text-amber-200, .text-amber-300, .text-amber-400) { color: #b45309; }
 html.light :is(.text-emerald-200, .text-emerald-300, .text-emerald-400) { color: #047857; }
 html.light :is(.text-sky-300) { color: #0369a1; }
 html.light :is(.text-red-300, .text-red-400) { color: #b91c1c; }
 html.light :is(.text-violet-300) { color: #6d28d9; }
+/* dentro de las barras azul marino los acentos se mantienen claros (en ambos modos) */
+html.light .nav-navy :is(.text-petrol-200, .text-petrol-300, .text-petrol-400) { color: #fdba74; }
+html.light .nav-navy :is(.text-emerald-300, .text-emerald-400) { color: #34d399; }
+html.light .nav-navy :is(.text-amber-300, .text-amber-400) { color: #fbbf24; }
+html.light .nav-navy :is(.text-red-400) { color: #f87171; }
 
 /* scrollbars */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -71,8 +100,8 @@ html.light :is(.text-violet-300) { color: #6d28d9; }
 ::-webkit-scrollbar-track { background: transparent; }
 
 .grid-bg {
-  background-image: linear-gradient(rgba(63,184,192,0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(63,184,192,0.07) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(100,140,190,0.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(100,140,190,0.10) 1px, transparent 1px);
   background-size: 22px 22px;
 }
 .hazard-stripe {

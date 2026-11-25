@@ -198,7 +198,7 @@ export default function TechnicianDrawer({
                     content={<ChartTooltip labelFormatter={(l) => `Día ${l} · ${dayToDate(Number(l))}`} valueSuffix=" %" />}
                   />
                   <ReferenceLine y={PASS_THRESHOLD} stroke="#f59e0b" strokeDasharray="5 4" strokeOpacity={0.6} />
-                  <ReferenceLine x={tech.currentDay} stroke="#3fb8c0" strokeOpacity={0.5} label={{ value: 'Hoy', fill: '#7fd3d8', fontSize: 10, position: 'insideTopRight' }} />
+                  <ReferenceLine x={tech.currentDay} stroke="#f5821f" strokeOpacity={0.6} label={{ value: 'Hoy', fill: '#f5821f', fontSize: 10, position: 'insideTopRight' }} />
                   <Line dataKey="real" name="Retención" stroke={SERIES.s1} strokeWidth={2} dot={false} isAnimationActive={CHART_ANIM} animationDuration={700} />
                   <Line dataKey="proyeccion" name="Proyección" stroke={SERIES.s1} strokeOpacity={0.7} strokeDasharray="4 4" strokeWidth={2} dot={false} isAnimationActive={false} />
                   {exams.map((e) => (

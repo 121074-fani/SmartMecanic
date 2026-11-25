@@ -51,7 +51,7 @@ export default function LoginView({ onLogin }: { onLogin: (s: Session) => void }
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Panel de marca */}
-      <div className="grid-bg relative hidden flex-col justify-between overflow-hidden border-r border-base-700 bg-base-900 p-10 lg:flex">
+      <div className="nav-navy nav-gradient relative hidden flex-col justify-between overflow-hidden border-r border-base-700 bg-base-900 p-10 lg:flex">
         <div className="flex items-center gap-3">
           <div className="relative grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-petrol-500 to-petrol-700 shadow-lg shadow-petrol-900/40">
             <Bus size={22} className="text-white" />

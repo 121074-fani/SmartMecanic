@@ -169,7 +169,7 @@ export default function App() {
         onLogout={logout}
       />
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-base-700 bg-base-950/85 px-4 py-3 backdrop-blur sm:gap-4 lg:px-8">
+        <header className="nav-navy sticky top-0 z-30 flex items-center gap-2 border-b border-base-700 bg-base-950/85 px-4 py-3 backdrop-blur sm:gap-4 lg:px-8">
           <button onClick={() => setNavOpen(true)} className="rounded-lg p-2 text-slate-300 hover:bg-base-800 lg:hidden" aria-label="Abrir menú">
             <Menu size={20} />
           </button>
