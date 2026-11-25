@@ -927,3 +927,9 @@ b.bad { color: var(--bad); }
 .frow { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .fmore { font-size: .76rem; font-weight: 700; color: var(--muted); text-decoration: underline; }
 .fmore:hover { color: var(--navy); }
+/* Botón y efectos del modo demo del diagnóstico */
+.demo-btn { background: #ede9fe; border-color: #c4b5fd; color: #5b21b6; }
+.demo-btn:hover:not(:disabled) { border-color: #7c3aed; }
+.opt.demo-hover { border-color: #7c3aed; background: #f5f3ff; box-shadow: 0 0 0 3px rgba(124, 58, 237, .25); transform: translateX(4px); }
+.sa-row.demo-pick { animation: demopick .6s ease; }
+@keyframes demopick { 0% { background: #ede9fe; } 100% { background: transparent; } }

@@ -229,6 +229,30 @@ function runQuiz(container, { total, next, onDone, label = '' }) {
   };
   step();
 }
+/* ---------- Modo demo: contesta el quiz solo, con respuestas aleatorias visibles ---------- */
+const demoAuto = { on: false, timer: null };
+function stopDemoAuto() { demoAuto.on = false; clearTimeout(demoAuto.timer); $$('.opt.demo-hover').forEach(o => o.classList.remove('demo-hover')); }
+function startDemoAuto(container) {
+  demoAuto.on = true;
+  const wait = (ms, f) => { clearTimeout(demoAuto.timer); demoAuto.timer = setTimeout(() => { if (demoAuto.on && document.body.contains(container)) f(); else stopDemoAuto(); }, ms); };
+  const step = () => {
+    const next = $('.quiz-fb button', container);
+    if (next) return wait(1100, () => { next.click(); wait(600, step); });
+    const opts = $$('.opt:not([disabled])', container);
+    if (!opts.length) return stopDemoAuto();               // terminó el quiz
+    const pick = opts[Math.floor(Math.random() * opts.length)];
+    let k = 0;                                              // recorre las opciones como si las leyera
+    const hover = () => {
+      opts.forEach(o => o.classList.remove('demo-hover'));
+      if (k < opts.length) { opts[k].classList.add('demo-hover'); k++; return wait(230, hover); }
+      pick.classList.add('demo-hover');
+      wait(450, () => { pick.classList.remove('demo-hover'); pick.click(); wait(300, step); });
+    };
+    hover();
+  };
+  cleanup.push(stopDemoAuto);
+  wait(500, step);
+}
 function pickQ(c, lvl, exclude) {
   let pool = QUESTIONS.filter(q => q.c === c && q.lvl === lvl && !exclude.has(q.id));
   if (!pool.length) pool = QUESTIONS.filter(q => q.c === c && !exclude.has(q.id));
@@ -317,13 +341,29 @@ function viewDiag(el, param) {
       ${COMPETENCIAS.map(c => `
         <div class="sa-row"><span>${c.icon} ${esc(c.name)}</span>
           <div class="scale">${[1, 2, 3, 4, 5].map(v => `<label><input type="radio" name="${c.id}" value="${v}" ${v === 3 ? 'checked' : ''}><span>${v}</span></label>`).join('')}</div></div>`).join('')}
-      <button class="btn primary" type="submit">Continuar al quiz adaptativo →</button>
+      <div class="row"><button class="btn primary" type="submit">Continuar al quiz adaptativo →</button>
+        <button class="btn demo-btn" type="button" id="simDiag">🎲 Simular respuestas (demo)</button></div>
     </form>`;
+  $('#simDiag').onclick = async () => {
+    const b = $('#simDiag'); b.disabled = true; b.textContent = '🎲 Simulando…';
+    for (const c of COMP_IDS) {
+      const v = 1 + Math.floor(Math.random() * 5);
+      const inp = document.querySelector(`#selfForm input[name="${c}"][value="${v}"]`);
+      if (!inp) return;
+      inp.checked = true; inp.closest('.sa-row').classList.add('demo-pick');
+      await new Promise(r => setTimeout(r, 320));
+    }
+    await new Promise(r => setTimeout(r, 450));
+    demoAuto.on = true;
+    if ($('#selfForm')) $('#selfForm').requestSubmit();
+  };
   $('#selfForm').onsubmit = e => {
     e.preventDefault();
     const f = new FormData(e.target);
     COMP_IDS.forEach(c => S.selfAssess[c] = +f.get(c));
-    el.innerHTML = `<div class="page-head"><div><span class="eyebrow">Paso 2 de 2</span><h1>Quiz adaptativo</h1><p class="muted">La dificultad se ajusta a tus respuestas: si aciertas sube, si fallas baja.</p></div></div><div id="qz"></div>`;
+    el.innerHTML = `<div class="page-head"><div><span class="eyebrow">Paso 2 de 2</span><h1>Quiz adaptativo</h1><p class="muted">La dificultad se ajusta a tus respuestas: si aciertas sube, si fallas baja.</p></div>
+      <button class="btn demo-btn" type="button" id="simQuiz">${demoAuto.on ? '⏹ Detener simulación' : '🎲 Simular respuestas (demo)'}</button></div><div id="qz"></div>`;
+    $('#simQuiz').onclick = () => { if (demoAuto.on) stopDemoAuto(); else startDemoAuto($('#qz')); $('#simQuiz').textContent = demoAuto.on ? '⏹ Detener simulación' : '🎲 Simular respuestas (demo)'; };
     const used = new Set();
     runQuiz($('#qz'), {
       total: COMP_IDS.length * 2, label: 'Diagnóstico',
@@ -347,6 +387,7 @@ function viewDiag(el, param) {
         save(); go('diagnostico');
       },
     });
+    if (demoAuto.on) startDemoAuto($('#qz'));
   };
 }
 function diagResults(el) {
