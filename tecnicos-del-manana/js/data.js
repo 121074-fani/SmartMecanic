@@ -343,3 +343,68 @@ const TEAM_SEED = [
   { name: 'S. Méndez',   role: 'elec',   xp: 1260, pre: 58, post: 84, delayed: 79, viol: 0, m: { hv: 74, ev: 70, diesel: 55, elec: 88, sw: 85, con: 86, diag: 84 }, errs: ['interpretacion-can'] },
   { name: 'D. Ortega',   role: 'nuevo',  xp: 310,  pre: 31, post: 58, delayed: 47, viol: 1, m: { hv: 49, ev: 36, diesel: 44, elec: 42, sw: 39, con: 33, diag: 47 }, errs: ['no-verificar-ausencia-tension', 'cambiar-piezas-sin-diagnostico'] },
 ];
+
+/* ---------- Modelos 3D que acompañan a cada micro-lección ----------
+   views: vistas disponibles (detalle de un conjunto o autobús completo con rayos X)
+   focus: piezas que se listan y se pueden resaltar en esa vista */
+const BUS_EV_FOCUS = ['bateria_av', 'msd', 'inversor', 'motor_e', 'dcdc', 'cable_av', 'enfriamiento', 'bateria_24'];
+const LESSON_3D = {
+  hv1:     [{ name: 'Inversor y MSD', scene: 'inversor', hide: ['busbar', 'caps'], focus: ['bateria', 'msd', 'msd_base', 'lock', 'lid', 'housing', 'tp'] }, { name: 'Autobús eléctrico', mode: 'ev', focus: ['msd', 'bateria_av', 'cable_av', 'inversor', 'bateria_24'] }],
+  hv2:     [{ name: 'Puntos de prueba', scene: 'inversor', hide: ['caps'], focus: ['tp', 'busbar', 'msd', 'lock', 'housing', 'bateria'] }, { name: 'Autobús eléctrico', mode: 'ev', focus: ['msd', 'inversor', 'cable_av', 'bateria_av'] }],
+  ev1:     [{ name: 'Autobús eléctrico', mode: 'ev', focus: BUS_EV_FOCUS.concat(['puerto_carga']) }, { name: 'Inversor y motor', scene: 'inversor', hide: ['busbar', 'caps', 'lock'], focus: ['bateria', 'housing', 'motor', 'msd'] }],
+  ev2:     [{ name: 'Autobús eléctrico', mode: 'ev', focus: ['compresor_ac', 'cable_ac', 'bateria_av', 'inversor', 'motor_e', 'cable_av'] }],
+  diesel1: [{ name: 'Turbo e intercooler', scene: 'intercooler', hide: ['crack'], focus: ['turbo', 'hose', 'intercooler', 'clamp1', 'clamp2', 'block'] }, { name: 'Autobús diésel', mode: 'diesel', focus: ['motor_d', 'turbo', 'manguera_ic', 'intercooler', 'tanque_comb', 'ecu_motor'] }],
+  diesel2: [{ name: 'Autobús diésel', mode: 'diesel', focus: ['postrat', 'tanque_adblue', 'motor_d', 'ecu_motor', 'turbo'] }],
+  elec1:   [{ name: 'Baterías de 24 V', scene: 'baterias', focus: ['batA', 'batB', 'a_pos', 'b_neg', 'jumper', 'cable_pos', 'cable_neg', 'bracket'] }, { name: 'Autobús', mode: 'ev', focus: ['bateria_24', 'dcdc', 'can'] }],
+  elec2:   [{ name: 'Baterías de 24 V', scene: 'baterias', focus: ['jumper', 'a_pos', 'a_neg', 'b_pos', 'b_neg', 'cable_pos', 'cable_neg', 'batA', 'batB'] }, { name: 'Autobús', mode: 'ev', focus: ['bateria_24', 'dcdc', 'gateway'] }],
+  sw1:     [{ name: 'Autobús diésel', mode: 'diesel', focus: ['ecu_motor', 'can', 'gateway', 'motor_d', 'turbo'] }],
+  sw2:     [{ name: 'Autobús diésel', mode: 'diesel', focus: ['ecu_motor', 'bateria_24', 'can', 'gateway'] }, { name: 'Baterías de 24 V', scene: 'baterias', focus: ['batA', 'batB', 'cable_pos', 'cable_neg'] }],
+  con1:    [{ name: 'Autobús', mode: 'ev', focus: ['can', 'gateway', 'inversor', 'bateria_24'] }],
+  con2:    [{ name: 'Autobús', mode: 'ev', focus: ['gateway', 'can', 'bateria_24', 'bateria_av'] }],
+  diag1:   [{ name: 'Turbo e intercooler', scene: 'intercooler', focus: ['hose', 'crack', 'clamp1', 'clamp2', 'turbo', 'intercooler'] }, { name: 'Autobús diésel', mode: 'diesel', focus: ['ecu_motor', 'motor_d', 'turbo', 'manguera_ic'] }],
+  diag2:   [{ name: 'Autobús eléctrico', mode: 'ev', focus: ['cable_ac', 'compresor_ac', 'cable_av', 'can', 'gateway'] }, { name: 'Baterías de 24 V', scene: 'baterias', focus: ['a_pos', 'jumper', 'cable_neg', 'bracket'] }],
+};
+
+/* Descripción corta de las piezas de los conjuntos en detalle */
+const DETAIL_INFO = {
+  bateria:  'Paquete de tracción de alto voltaje (≈650 V CC). Nunca se interviene sin desenergizar y verificar.',
+  msd_base: 'Alojamiento del MSD. Al retirar el MSD el circuito de la batería queda abierto físicamente.',
+  msd:      'Desconexión manual de servicio: se retira para aislar la batería. Guárdalo contigo mientras trabajas.',
+  lock:     'Candado y etiqueta personal (LOTO): impide que alguien reinstale el MSD mientras trabajas.',
+  housing:  'Carcasa del inversor: dentro hay capacitores que conservan carga unos minutos tras desconectar.',
+  lid:      'Tapa de la zona de alto voltaje. Solo se abre con el sistema desenergizado y verificado.',
+  bolt1: 'Tornillo de la tapa (M8). Se retira con herramienta aislada.', bolt2: 'Tornillo de la tapa (M8). Se retira con herramienta aislada.',
+  bolt3: 'Tornillo de la tapa (M8). Se retira con herramienta aislada.', bolt4: 'Tornillo de la tapa (M8). Se retira con herramienta aislada.',
+  busbar:   'Barra colectora de CC+: lleva la corriente de la batería al inversor.',
+  tp:       'Puntos de prueba: aquí se verifica ausencia de tensión (+/–, +/chasis, –/chasis) con multímetro CAT III/IV.',
+  motor:    'Motor de tracción: recibe CA trifásica del inversor y regenera energía al frenar.',
+  block:    'Bloque del motor diésel: aquí ocurre la combustión del aire comprimido con el combustible.',
+  turbo:    'Turbocompresor: usa los gases de escape para comprimir el aire de admisión.',
+  hose:     'Manguera del intercooler: lleva el aire comprimido. Una fuga causa humo negro y pérdida de potencia.',
+  crack:    'Fisura en la manguera: el aire se escapa, baja la presión de sobrealimentación (falla típica).',
+  clamp1:   'Abrazadera: sella la unión de la manguera. Floja = fuga de aire.', clamp2: 'Abrazadera: sella la unión de la manguera. Floja = fuga de aire.',
+  intercooler: 'Intercooler: enfría el aire comprimido para que sea más denso y mejore la combustión.',
+  batA:     'Batería A de 12 V. Conectada en serie con la B forma los 24 V del autobús.',
+  batB:     'Batería B de 12 V. Conectada en serie con la A forma los 24 V del autobús.',
+  a_pos:    'Borne positivo de la batería A. Revisa corrosión y apriete: causa común de caída de tensión.',
+  a_neg:    'Borne negativo de la batería A, unido por el puente a la batería B.',
+  b_pos:    'Borne positivo de la batería B, unido por el puente a la batería A.',
+  b_neg:    'Borne negativo de la batería B: va a chasis (masa). Se desconecta primero y se conecta al final.',
+  cable_pos:'Cable positivo principal: alimenta el sistema de 24 V. Aquí se mide corriente con pinza.',
+  jumper:   'Puente entre baterías (A– a B+): une las dos de 12 V en serie. Mide caída de tensión bajo carga.',
+  cable_neg:'Cable negativo a chasis (masa). Una mala masa provoca fallas raras en varios módulos a la vez.',
+  bracket:  'Sujetador: evita que las baterías se muevan; la vibración daña bornes y cables.',
+};
+
+/* Palabras que, si aparecen en la tarjeta, resaltan esa pieza en el modelo */
+const PART_KEYWORDS = {
+  msd: ['MSD'], lock: ['LOTO', 'etiquet', 'bloquear'], bateria: ['baterías de tracción', 'batería de tracción', 'cientos de volts', 'Batería de tracción'],
+  bateria_av: ['batería de tracción', 'Batería de tracción', 'BMS', 'Paquetes'], tp: ['Puntos de medición', 'puntos indicados', 'puntos de prueba', 'ausencia', 'multímetro', 'Multímetro'],
+  lid: ['cubiertas AV', 'cubierta'], housing: ['conectores naranja', 'descarga'], inversor: ['inversor'], motor: ['motor de tracción', 'regenera'], motor_e: ['motor de tracción', 'regenera', 'motor'],
+  dcdc: ['DC/DC'], enfriamiento: ['enfriamiento', 'Térmica'], compresor_ac: ['A/C', 'compresor', 'consumidor'], cable_ac: ['arnés', 'Arnés'], cable_av: ['circuito AV', 'chasis', 'conectores naranja'],
+  turbo: ['turbo'], intercooler: ['intercooler'], hose: ['admisión', 'aire', 'Aire'], manguera_ic: ['admisión', 'aire'], block: ['combustión', 'inyección', 'Combustible', 'humo'],
+  postrat: ['DPF', 'SCR', 'catalizador', 'postratamiento'], tanque_adblue: ['AdBlue', 'DEF', 'urea'], motor_d: ['motor', 'humo'], tanque_comb: ['combustible'],
+  batA: ['Tensión', 'paralelo', 'reposo'], cable_pos: ['Corriente', 'serie', 'pinza', 'consumo', 'Consumo'], jumper: ['unión', 'Caída', 'caída'], a_pos: ['Conectores', 'Corrosión', 'corrosión'], cable_neg: ['masa', 'chasis'], bracket: ['vibración'],
+  ecu_motor: ['ECU', 'DTC', 'Datos', 'datos', 'versión'], gateway: ['Gateway', 'nube', 'telemática', 'Telemática'], can: ['CAN', 'J1939', 'Ω', 'red', 'comunicación'], bateria_24: ['Mantenedor', 'alimentación', '24 V'],
+  crack: ['Confirmar', 'hipótesis', 'Causa raíz', 'causa'], clamp1: ['Reparar', 'Verificar'],
+};

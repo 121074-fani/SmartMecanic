@@ -6,6 +6,7 @@ const CACHE = 'tdm-v21';
 const MP_CACHE = 'tdm-mediapipe-1.2.2';
 const isMediaPipe = url => url.startsWith('https://cdn.jsdelivr.net/npm/@mediapipe/') || url.startsWith('https://storage.googleapis.com/mediapipe-models/');
 const ASSETS = ['./', './index.html', './css/styles.css', './js/icons.js', './js/data.js', './js/data-taller.js', './js/data-sims.js', './js/data-senala.js', './js/data-equipo.js', './js/data-modelos.js', './js/engine3d.js', './js/charts.js', './js/hand-tracking.js', './js/app.js', './manifest.json', './icons/icon.svg'];
+/* Service worker: la app funciona sin conexión (cache-first del shell) */
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== MP_CACHE).map(k => caches.delete(k)))));

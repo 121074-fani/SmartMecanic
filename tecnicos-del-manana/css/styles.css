@@ -1078,3 +1078,26 @@ h1 .ic, h2 .ic, h3 .ic { vertical-align: -0.12em; }
 .artip { position: absolute; left: 50%; bottom: 62px; transform: translateX(-50%); width: min(92%, 420px); padding: 8px 12px; border-radius: 12px; background: rgba(11, 45, 82, .85); color: #fff; font-size: .78rem; line-height: 1.35; text-align: center; }
 .aredge { position: absolute; left: 0; top: 0; width: 44px; height: 44px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 1.6rem; font-weight: 800; box-shadow: 0 6px 16px rgba(0, 0, 0, .35); pointer-events: auto; cursor: pointer; will-change: transform; }
 .aredge span { transform: translateY(-2px); }
+
+/* Micro-lección con modelo 3D */
+.lesson.with3d { max-width: 1240px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); grid-template-areas: "dots dots" "card viewer" "src viewer"; grid-template-rows: auto auto 1fr; gap: 0 18px; align-items: start; }
+.lesson.with3d .dots { grid-area: dots; }
+.lesson.with3d .lcard { grid-area: card; }
+.lesson.with3d .src { grid-area: src; }
+.lesson.with3d .l3d { grid-area: viewer; position: sticky; top: 14px; }
+.l3d { padding: 14px; }
+.l3d-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.l3d-title { font-weight: 800; color: var(--navy); display: inline-flex; align-items: center; gap: 6px; }
+.seg.sm button { padding: 5px 10px; font-size: .78rem; }
+.l3d-stage { height: 400px; }
+.l3d-stage .stage-hint { top: 10px; bottom: auto; }
+.l3d-info { margin-top: 10px; min-height: 64px; padding: 10px 12px; border-radius: 12px; background: var(--bg, #f4f6fa); border: 1px solid var(--line); }
+.l3d-info p { margin: 4px 0 0; font-size: .86rem; color: #334155; line-height: 1.4; }
+.l3d-part b { color: var(--navy); }
+.l3d-auto { display: block; font-size: .66rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 2px; }
+.l3d-chips { margin-top: 10px; }
+@media (max-width: 1000px) {
+  .lesson.with3d { grid-template-columns: 1fr; grid-template-areas: "dots" "card" "viewer" "src"; }
+  .lesson.with3d .l3d { position: static; margin-bottom: 16px; }
+  .l3d-stage { height: 320px; }
+}
