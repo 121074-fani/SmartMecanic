@@ -1101,3 +1101,11 @@ h1 .ic, h2 .ic, h3 .ic { vertical-align: -0.12em; }
   .lesson.with3d .l3d { position: static; margin-bottom: 16px; }
   .l3d-stage { height: 320px; }
 }
+
+/* Modo "Mano" en el celular: cámara de fondo desenfocada y la palabra VOLVO detrás del modelo */
+.stage .arvideo { transition: filter .45s ease, scale .45s ease; }
+.stage.hand-on .arvideo { filter: blur(14px) brightness(.78) saturate(1.1); scale: 1.12; }
+.handbrand { position: absolute; left: 0; right: 0; top: 30%; transform: translateY(-50%); text-align: center; pointer-events: none; user-select: none;
+  font-weight: 800; font-size: clamp(52px, 18vw, 150px); line-height: 1; letter-spacing: .22em; padding-left: .22em;
+  color: rgba(255, 255, 255, .92); text-shadow: 0 6px 28px rgba(0, 0, 0, .35); animation: brandin .6s ease both; }
+@keyframes brandin { from { opacity: 0; letter-spacing: .5em; } to { opacity: 1; letter-spacing: .22em; } }
