@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="/assets/icon-Br2jYa7R.svg" type="image/svg+xml">
-  <link rel="stylesheet" crossorigin href="/assets/tecnicos-BW8fNuzj.css">
+  <link rel="stylesheet" crossorigin href="/assets/tecnicos-DUSppzo_.css">
 </head>
 <body>
   <div id="app">
@@ -19,16 +19,15 @@
       </a>
       <div id="userCard" class="usercard"></div>
       <nav id="nav">
-        <a href="#/inicio" data-r="inicio"><span>🏠</span>Inicio</a>
-        <a href="#/ruta" data-r="ruta"><span>🧭</span>Mi ruta</a>
-        <a href="#/practicar" data-r="practicar" class="star"><span>⭐</span>Practicar</a>
-        <a href="#/evaluaciones" data-r="evaluar"><span>📝</span>Evaluar <em id="navReviews" class="count" hidden>0</em></a>
-        <a href="#/asistente" data-r="asistente"><span>🤖</span>Asistente técnico</a>
-        <a href="#/tablero" data-r="tablero"><span>📊</span>Tablero</a>
-        <a href="#/escalabilidad" data-r="escalabilidad" class="minor"><span>🌐</span>Escalabilidad</a>
+        <a href="#/inicio" data-r="inicio"><span>{{i:home}}</span>Inicio</a>
+        <a href="#/ruta" data-r="ruta"><span>{{i:route}}</span>Mi ruta</a>
+        <a href="#/practicar" data-r="practicar" class="star"><span>{{i:star}}</span>Practicar</a>
+        <a href="#/evaluaciones" data-r="evaluar"><span>{{i:clipboard}}</span>Evaluar <em id="navReviews" class="count" hidden>0</em></a>
+        <a href="#/asistente" data-r="asistente"><span>{{i:chat}}</span>Asistente técnico</a>
+        <a href="#/tablero" data-r="tablero"><span>{{i:chart}}</span>Tablero</a>
+        <a href="#/escalabilidad" data-r="escalabilidad" class="minor"><span>{{i:globe}}</span>Escalabilidad</a>
       </nav>
       <div class="side-foot">
-        <button class="btn ghost sm" id="logoutBtn" type="button" hidden>Cerrar sesión</button>
         <button class="btn ghost sm" id="demoNav">Cargar datos demo</button>
         <button class="btn ghost sm" id="resetBtn">Reiniciar datos</button>
         <p class="disclaimer">Prototipo HackaTec 2026. Contenido técnico de ejemplo; en producción proviene de documentación autorizada.</p>
@@ -36,37 +35,35 @@
     </aside>
     <div id="main">
       <header id="topbar">
-        <button id="menuBtn" class="icon-btn" aria-label="Menú">☰</button>
+        <button id="menuBtn" class="icon-btn" aria-label="Menú">{{i:menu}}</button>
         <span class="topbrand">Técnicos del Mañana</span>
-        <div class="clock" title="Reloj simulado para probar repasos espaciados y la revisión diferida">
-          <span class="nowrap">📅 <span class="hide-sm">Día simulado</span><span class="show-sm">Día</span> <b id="dayNum">0</b></span>
-          <button class="btn sm" id="plus1">+1 día</button>
-          <button class="btn sm" id="plus7">+7 días</button>
-        </div>
         <span id="netPill" class="pill net on">● En línea</span>
       </header>
       <main id="view" class="view"></main>
     </div>
   </div>
   <nav id="tabbar" aria-label="Navegación principal">
-    <a href="#/inicio" data-r="inicio"><span>🏠</span>Inicio</a>
-    <a href="#/ruta" data-r="ruta"><span>🧭</span>Ruta</a>
-    <a href="#/practicar" data-r="practicar" class="mid"><span>⭐</span>Practicar</a>
-    <a href="#/evaluaciones" data-r="evaluar"><span>📝</span>Evaluar</a>
-    <button id="moreBtn" type="button"><span>☰</span>Más</button>
+    <a href="#/inicio" data-r="inicio"><span>{{i:home}}</span>Inicio</a>
+    <a href="#/ruta" data-r="ruta"><span>{{i:route}}</span>Ruta</a>
+    <a href="#/practicar" data-r="practicar" class="mid"><span>{{i:star}}</span>Practicar</a>
+    <a href="#/evaluaciones" data-r="evaluar"><span>{{i:clipboard}}</span>Evaluar</a>
+    <button id="moreBtn" type="button"><span>{{i:menu}}</span>Más</button>
   </nav>
   <div id="scrim"></div>
   <div id="toasts"></div>
   <div id="modal" class="modal" hidden></div>
 
+  <script src="js/icons.js"></script>
   <script src="js/data.js"></script>
   <script src="js/data-taller.js"></script>
   <script src="js/engine3d.js"></script>
   <script src="js/data-sims.js"></script>
   <script src="js/data-senala.js"></script>
+  <script src="js/data-equipo.js"></script>
+  <script src="js/data-modelos.js"></script>
   <script src="js/charts.js"></script>
-  <!-- puente con el Dashboard del supervisor: sesión, módulos publicados y telemetría (sin UI propia) -->
-  <script src="js/bridge.js"></script>
+  <!-- reconocimiento de manos (MediaPipe, se descarga al activar la cámara) -->
+  <script src="js/hand-tracking.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

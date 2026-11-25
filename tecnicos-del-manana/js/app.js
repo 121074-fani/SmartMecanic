@@ -2502,12 +2502,30 @@ function viewModule(el, n) {
 }
 
 /* =========================================================
-   CONTROL CON LA MANO (cámara) — detección de movimiento simple
-   Compara cada cuadro con el anterior a baja resolución, calcula
-   el centro del movimiento y gira el modelo según cómo se desplaza.
-   No usa librerías ni internet; las imágenes no salen del equipo.
+   CONTROL CON LA MANO (cámara)
+   Principal: reconocimiento real de manos con MediaPipe (js/hand-tracking.js):
+   apuntar con el índice, pinza para tocar piezas, pinza sostenida para girar.
+   Respaldo (sin cámara segura/WASM): realidad aumentada en el celular o la
+   detección de movimiento simple en escritorio. El control táctil siempre sigue activo.
    ========================================================= */
 function attachHandControl(stage, scene) {
+  if (!$('.vtools', stage)) return;
+  const phone = isPhone();
+  if (window.HandGestures && HandGestures.supported()) {
+    const hand = HandGestures.attach(stage, scene, { mobile: phone });
+    if (hand) {
+      cleanup.push(hand);
+      // en el celular también queda la realidad aumentada, con su propio botón "Mano" adentro
+      if (phone) attachAR(stage, scene, hand);
+      return;
+    }
+  }
+  attachMotionControl(stage, scene);
+}
+
+/* Respaldo: detección de movimiento simple. Compara cada cuadro con el anterior a baja
+   resolución, calcula el centro del movimiento y gira el modelo según cómo se desplaza. */
+function attachMotionControl(stage, scene) {
   const tools = $('.vtools', stage);
   if (!tools) return;
   if (isPhone()) return attachAR(stage, scene);          // en el celular: cámara trasera + realidad aumentada
@@ -2661,7 +2679,7 @@ function deviceAxes(o) {
   };
 }
 
-function attachAR(stage, scene) {
+function attachAR(stage, scene, handMode) {
   const tools = $('.vtools', stage);
   const btn = document.createElement('button');
   btn.className = 'vt arbtn'; btn.type = 'button'; btn.title = 'Ver en realidad aumentada (cámara trasera)';
@@ -2676,6 +2694,13 @@ function attachAR(stage, scene) {
     <div class="aredge" hidden><span>›</span></div>`;
   stage.appendChild(hud);
   const tip = $('.artip', hud), edge = $('.aredge', hud);
+  // control con la mano DENTRO de la realidad aumentada: usa la misma cámara trasera (no abre otra)
+  const arHand = window.HandGestures && HandGestures.supported()
+    ? HandGestures.attach(stage, scene, { external: { getVideo: () => video, bar: $('.arbar', hud), tip } })
+    : null;
+  if (arHand) cleanup.push(arHand);
+  // solo una cámara a la vez: el modo "Mano" independiente y la realidad aumentada se excluyen
+  if (handMode) handMode.onStart = () => { if (stream) stop(); };
   let stream = null, video = null, raf = 0, ori = null, gyro = false, anchor = null, tipT = 0;
   const view = { ox: 0, oy: 0, rot: 0 };
   const onOri = e => { if (e.alpha == null && e.beta == null) return; ori = { alpha: e.alpha, beta: e.beta, gamma: e.gamma }; gyro = true; };
@@ -2685,6 +2710,7 @@ function attachAR(stage, scene) {
       toast('Para usar la cámara del celular la página debe abrirse con https (por ejemplo, publicada en GitHub Pages o Netlify).');
       return;
     }
+    if (handMode) handMode.stop();    // libera la cámara del modo "Mano" independiente
     // iPhone: el permiso de sensores debe pedirse justo al tocar el botón
     let perm = Promise.resolve('granted');
     try {
@@ -2711,6 +2737,7 @@ function attachAR(stage, scene) {
     loop();
   }
   function stop() {
+    if (arHand) arHand.stop();         // la mano dentro de AR usa este video: se detiene primero
     cancelAnimationFrame(raf); clearTimeout(tipT);
     window.removeEventListener('deviceorientation', onOri);
     if (stream) stream.getTracks().forEach(t => t.stop());

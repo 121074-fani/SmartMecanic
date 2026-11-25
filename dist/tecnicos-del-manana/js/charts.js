@@ -54,13 +54,13 @@ const Charts = (() => {
   }
 
   /** Líneas: xs[], series [{name, values[], color, dash}] */
-  function line({ xs, series, height = 220, max = 100, xLabel = '', markers = [] }) {
-    const W = 640, H = height, l = 34, b = 40, t = 12, r = 12;
+  function line({ xs, series, height = 220, max = 100, xLabel = '', markers = [], unit = '', dots = false }) {
+    const W = 640, H = height, l = 40, b = 40, t = 12, r = 26;
     const X = i => l + (W - l - r) * i / (xs.length - 1);
     const Y = v => H - b - (H - b - t) * v / max;
     let s = `<svg viewBox="0 0 ${W} ${H}" class="chart line" role="img">`;
-    [0, 25, 50, 75, 100].forEach(v => {
-      s += `<line x1="${l}" x2="${W - r}" y1="${Y(v)}" y2="${Y(v)}" class="gl"/><text x="${l - 6}" y="${Y(v)}" text-anchor="end" dominant-baseline="middle" class="ax">${v}</text>`;
+    [0, 0.25, 0.5, 0.75, 1].map(f => Math.round(max * f)).forEach(v => {
+      s += `<line x1="${l}" x2="${W - r}" y1="${Y(v)}" y2="${Y(v)}" class="gl"/><text x="${l - 6}" y="${Y(v)}" text-anchor="end" dominant-baseline="middle" class="ax">${v}${unit}</text>`;
     });
     const step = Math.ceil(xs.length / 8);
     xs.forEach((x, i) => { if (i % step === 0 || i === xs.length - 1) s += `<text x="${X(i)}" y="${H - b + 16}" text-anchor="middle" class="ax">${esc(x)}</text>`; });
@@ -68,6 +68,7 @@ const Charts = (() => {
     series.forEach(se => {
       const d = se.values.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
       s += `<path d="${d}" fill="none" stroke="${se.color}" stroke-width="2.5" ${se.dash ? 'stroke-dasharray="6 5"' : ''}/>`;
+      if (dots && !se.dash) se.values.forEach((v, i) => { s += `<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="4" fill="#fff" stroke="${se.color}" stroke-width="2"><title>${esc(xs[i])}: ${v}${unit}</title></circle>`; });
     });
     if (xLabel) s += `<text x="${W / 2}" y="${H - 4}" text-anchor="middle" class="ax">${esc(xLabel)}</text>`;
     s += '</svg>';

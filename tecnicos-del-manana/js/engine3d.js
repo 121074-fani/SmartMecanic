@@ -246,6 +246,31 @@ const E3D = (() => {
       }
       return null;
     }
+    /* ---- Puntero externo (p. ej. la mano vista por la cámara), en coordenadas de pantalla ----
+       Usan el mismo pick → selected → onPick que el clic/toque, así que una pinza sobre una pieza
+       pasa por exactamente las mismas reglas (EPP → LOTO → 0 V), errores y puntuación. */
+    pickAt(clientX, clientY) {
+      const r = this.canvas.getBoundingClientRect();
+      if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) return null;
+      return this.pick((clientX - r.left) * this.dpr, (clientY - r.top) * this.dpr);
+    }
+    /** Resalta (hover) la pieza bajo el puntero; null lo apaga. Devuelve el id de la pieza o null. */
+    hoverAt(clientX, clientY) {
+      this.hover = clientX == null ? null : this.pickAt(clientX, clientY);
+      return this.hover;
+    }
+    /** Selecciona la pieza bajo el puntero como si se hubiera tocado. */
+    selectAt(clientX, clientY) {
+      const hit = this.pickAt(clientX, clientY);
+      if (hit) { this.selected = hit; this.onPick && this.onPick(hit); }
+      return hit;
+    }
+    /** Gira la vista con un desplazamiento en píxeles de pantalla (misma escala que arrastrar con el mouse). */
+    rotateBy(dx, dy) {
+      this.autoRotate = false;
+      this.yaw -= dx * 0.008;
+      this.pitch = Math.min(1.35, Math.max(-0.15, this.pitch + dy * 0.006));
+    }
     render(t = 0) {
       const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
       if (this.autoRotate) this.yaw += 0.003;

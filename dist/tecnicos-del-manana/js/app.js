@@ -49,8 +49,6 @@ const level = () => 1 + Math.floor(S.xp / XP_PER_LEVEL);
 function addXP(n, why) {
   const before = level();
   S.xp += Math.max(0, round(n));
-  toast(`+${round(n)} XP · ${why}`);
-  if (level() > before) { toast(`⭐ ¡Subiste a nivel ${level()}!`); log('nivel', `Alcanzó el nivel ${level()}`); }
 }
 function badge(id) {
   if (S.badges.includes(id)) return;
@@ -109,7 +107,7 @@ function scenarioLocked(sc) {
 
 /* ---------------- Siguiente acción sugerida ---------------- */
 function nextAction() {
-  if (!S.tests.pre) return { route: 'diagnostico', title: 'Haz tu diagnóstico inicial', text: '14 preguntas adaptativas (≈8 min) para construir tu mapa de competencias.', cta: 'Empezar diagnóstico' };
+  if (!S.tests.pre) return { route: 'diagnostico', title: 'Haz tu diagnóstico inicial', text: '10 preguntas adaptativas (≈5 min) para construir tu mapa de competencias.', cta: 'Empezar diagnóstico' };
   if (dueReviews().length) return { route: 'repasos', title: `Tienes ${dueReviews().length} repaso(s) pendiente(s)`, text: 'La repetición espaciada es la forma más eficiente de no olvidar.', cta: 'Hacer repaso' };
   const done = Object.keys(S.lessonsDone).length;
   const r = computeRoute().find(l => !l.done);
@@ -127,7 +125,7 @@ function nextAction() {
 /* ---------------- UI global ---------------- */
 function toast(msg) {
   const t = document.createElement('div');
-  t.className = 'toast'; t.textContent = msg;
+  t.className = 'toast'; t.innerHTML = esc(msg).replace(/\{\{i:([A-Za-z]+)\}\}/g, (_, n) => ico(n));
   $('#toasts').appendChild(t);
   setTimeout(() => t.classList.add('out'), 2600);
   setTimeout(() => t.remove(), 3100);
@@ -135,15 +133,12 @@ function toast(msg) {
 function renderChrome() {
   const u = $('#userCard');
   if (S.user) {
-    const lv = level(), into = S.xp % XP_PER_LEVEL;
     u.innerHTML = `
       <div class="uc-name">${esc(S.user.name)}</div>
       <div class="uc-role">${esc(ROLES[S.user.role].name)}</div>
-      <div class="uc-lv"><span>Nivel ${lv}</span><span>${S.xp} XP</span></div>
-      <div class="bar"><i style="width:${into / XP_PER_LEVEL * 100}%"></i></div>
       <div class="uc-badges">${S.badges.map(b => `<span title="${esc(BADGES[b].name)}">${BADGES[b].icon}</span>`).join('') || '<span class="muted small">Sin insignias aún</span>'}</div>`;
   } else u.innerHTML = '<div class="muted small">Sin sesión</div>';
-  $('#dayNum').textContent = S.day;
+  const dn = $('#dayNum'); if (dn) dn.textContent = S.day;
   const due = dueReviews().length;
   const badgeEl = $('#navReviews');
   if (badgeEl) { badgeEl.textContent = due; badgeEl.hidden = !due; }
@@ -159,7 +154,7 @@ function advanceDays(n) {
   log('tiempo', `Avanzó ${n} día(s) simulados → día ${S.day}`);
   save();
   const d = dueReviews().length;
-  toast(`📅 Día ${S.day}${d ? ` · ${d} repaso(s) pendiente(s)` : ''}`);
+  toast(`{{i:calendar}} Día ${S.day}${d ? ` · ${d} repaso(s) pendiente(s)` : ''}`);
   render();
 }
 
@@ -167,8 +162,8 @@ function advanceDays(n) {
 let cleanup = [];
 const NAV_GROUP = { leccion: 'ruta', senala: 'practicar', aprende: 'practicar', taller: 'practicar', practica: 'practicar', inspeccion: 'practicar', diagnostico: 'evaluar', evaluaciones: 'evaluar', repasos: 'evaluar' };
 const SUBNAV = {
-  practicar: [['practicar', 'Todo'], ['senala', '👆 Señala la pieza'], ['aprende', '⭐ Aprende haciendo'], ['taller', '🔧 Taller'], ['practica', '🛠️ Fallas'], ['inspeccion', '🚌 Modelo 3D']],
-  evaluar: [['diagnostico', '🎯 Diagnóstico'], ['evaluaciones', '📝 Antes · después · diferida'], ['repasos', '🔁 Repasos']],
+  practicar: [['practicar', '{{i:bus}} Autobús y módulos'], ['senala', '{{i:pointer}} Señala la pieza'], ['aprende', '{{i:star}} Aprende haciendo'], ['taller', '{{i:wrench}} Taller'], ['practica', '{{i:wrench}} Fallas'], ['inspeccion', '{{i:bus}} Modelo 3D']],
+  evaluar: [['diagnostico', '{{i:target}} Diagnóstico'], ['evaluaciones', '{{i:clipboard}} Antes · después · diferida'], ['repasos', '{{i:repeat}} Repasos']],
 };
 const ROUTES = {
   inicio: viewHome, diagnostico: viewDiag, ruta: viewRoute, leccion: viewLesson,
@@ -208,12 +203,14 @@ function runQuiz(container, { total, next, onDone, label = '' }) {
     const order = shuffle(q.o.map((_, i) => i));
     container.innerHTML = `
       <div class="card quiz">
-        <div class="quiz-head"><span class="pill">${comp(q.c).icon} ${esc(compName(q.c))}</span><span class="muted">${esc(label)} · ${results.length + 1} / ${total}</span></div>
+        <div class="quiz-head"><span class="pill">${comp(q.c).icon} ${esc(compName(q.c))}</span><span class="muted">${esc(label)} · ${results.length + 1} / ${total}</span>
+          <button type="button" class="btn sm demo-btn qauto">${demoAuto.on ? '{{i:stop}} Detener' : '{{i:shuffle}} Contestar automático'}</button></div>
         <div class="progress"><i style="width:${results.length / total * 100}%"></i></div>
         <h3 class="quiz-q">${esc(q.q)}</h3>
         <div class="opts">${order.map((i, k) => `<button class="opt" data-i="${i}"><span class="key">${'ABCD'[k]}</span>${esc(q.o[i])}</button>`).join('')}</div>
         <div class="quiz-fb"></div>
       </div>`;
+    $('.qauto', container).onclick = () => { if (demoAuto.on) stopDemoAuto(); else startDemoAuto(container); $$('.qauto', container).forEach(x => x.innerHTML = demoAuto.on ? '{{i:stop}} Detener' : '{{i:shuffle}} Contestar automático'); };
     $$('.opt', container).forEach(b => b.onclick = () => {
       const i = +b.dataset.i, correct = i === q.a;
       results.push({ q, correct });
@@ -221,13 +218,38 @@ function runQuiz(container, { total, next, onDone, label = '' }) {
       $$('.opt', container).forEach(x => { x.disabled = true; if (+x.dataset.i === q.a) x.classList.add('right'); });
       if (!correct) b.classList.add('wrong');
       const fb = $('.quiz-fb', container);
-      fb.innerHTML = `<div class="fb ${correct ? 'ok' : 'bad'}"><b>${correct ? '✔ Correcto.' : '✘ Incorrecto.'}</b> ${esc(q.exp || '')}</div>
+      fb.innerHTML = `<div class="fb ${correct ? 'ok' : 'bad'}"><b>${correct ? '{{i:check}} Correcto.' : '{{i:x}} Incorrecto.'}</b> ${esc(q.exp || '')}</div>
         <button class="btn primary">${results.length >= total ? 'Ver resultados' : 'Siguiente →'}</button>`;
       $('button', fb).onclick = step;
       $('button', fb).focus();
     });
   };
   step();
+}
+/* ---------- Modo demo: contesta el quiz solo, con respuestas aleatorias visibles ---------- */
+const demoAuto = { on: false, timer: null };
+const DIAG_TOTAL = 10;
+function stopDemoAuto() { demoAuto.on = false; clearTimeout(demoAuto.timer); $$('.opt.demo-hover').forEach(o => o.classList.remove('demo-hover')); }
+function startDemoAuto(container) {
+  demoAuto.on = true;
+  const wait = (ms, f) => { clearTimeout(demoAuto.timer); demoAuto.timer = setTimeout(() => { if (demoAuto.on && document.body.contains(container)) f(); else stopDemoAuto(); }, ms); };
+  const step = () => {
+    const next = $('.quiz-fb button', container);
+    if (next) return wait(1100, () => { next.click(); wait(600, step); });
+    const opts = $$('.opt:not([disabled])', container);
+    if (!opts.length) return stopDemoAuto();               // terminó el quiz
+    const pick = opts[Math.floor(Math.random() * opts.length)];
+    let k = 0;                                              // recorre las opciones como si las leyera
+    const hover = () => {
+      opts.forEach(o => o.classList.remove('demo-hover'));
+      if (k < opts.length) { opts[k].classList.add('demo-hover'); k++; return wait(230, hover); }
+      pick.classList.add('demo-hover');
+      wait(450, () => { pick.classList.remove('demo-hover'); pick.click(); wait(300, step); });
+    };
+    hover();
+  };
+  cleanup.push(stopDemoAuto);
+  wait(500, step);
 }
 function pickQ(c, lvl, exclude) {
   let pool = QUESTIONS.filter(q => q.c === c && q.lvl === lvl && !exclude.has(q.id));
@@ -276,7 +298,7 @@ function viewHome(el) {
   const na = nextAction();
   const done = Object.keys(S.lessonsDone).length;
   el.innerHTML = `
-    <div class="page-head"><div><span class="eyebrow">Día simulado ${S.day}</span><h1>Hola, ${esc(S.user.name.split(' ')[0])}</h1></div></div>
+    <div class="page-head"><div><span class="eyebrow">${esc(ROLES[S.user.role].name)}</span><h1>Hola, ${esc(S.user.name.split(' ')[0])}</h1></div></div>
     <div class="grid g-2-1">
       <div class="card next">
         <span class="eyebrow">Tu siguiente paso</span>
@@ -299,7 +321,6 @@ function flowHTML() {
     ['practicar', '3', 'Módulo práctico 3D', 'Señala la pieza, Aprende haciendo, Taller y Fallas', S.practice.length > 0 || (S.procs || []).length > 0],
     ['evaluaciones', '4', 'Pre / post / diferida', 'Ganancia de aprendizaje y retención', !!S.tests.delayed],
     ['tablero', '5', 'Tablero de indicadores', 'Avance, dominio, errores, retención', !!S.tests.pre],
-    ['escalabilidad', '6', 'Escalabilidad e integración', 'Documentación, cientos de técnicos, offline', true],
   ];
   return `<section class="flow">${st.map(([r, n, t, d, ok]) => `
     <a class="card step ${ok && S.user ? 'ok' : ''}" href="#/${r}"><span class="num">${ok && S.user ? '✓' : n}</span><div><b>${t}</b><small>${d}</small></div></a>`).join('')}</section>`;
@@ -317,28 +338,46 @@ function viewDiag(el, param) {
       ${COMPETENCIAS.map(c => `
         <div class="sa-row"><span>${c.icon} ${esc(c.name)}</span>
           <div class="scale">${[1, 2, 3, 4, 5].map(v => `<label><input type="radio" name="${c.id}" value="${v}" ${v === 3 ? 'checked' : ''}><span>${v}</span></label>`).join('')}</div></div>`).join('')}
-      <button class="btn primary" type="submit">Continuar al quiz adaptativo →</button>
+      <div class="row"><button class="btn primary" type="submit">Continuar al quiz adaptativo →</button>
+        <button class="btn demo-btn" type="button" id="simDiag">{{i:shuffle}} Simular respuestas (demo)</button></div>
     </form>`;
+  $('#simDiag').onclick = async () => {
+    const b = $('#simDiag'); b.disabled = true; b.innerHTML = '{{i:shuffle}} Simulando…';
+    for (const c of COMP_IDS) {
+      const v = 1 + Math.floor(Math.random() * 5);
+      const inp = document.querySelector(`#selfForm input[name="${c}"][value="${v}"]`);
+      if (!inp) return;
+      inp.checked = true; inp.closest('.sa-row').classList.add('demo-pick');
+      await new Promise(r => setTimeout(r, 320));
+    }
+    await new Promise(r => setTimeout(r, 450));
+    demoAuto.on = true;
+    if ($('#selfForm')) $('#selfForm').requestSubmit();
+  };
   $('#selfForm').onsubmit = e => {
     e.preventDefault();
     const f = new FormData(e.target);
     COMP_IDS.forEach(c => S.selfAssess[c] = +f.get(c));
     el.innerHTML = `<div class="page-head"><div><span class="eyebrow">Paso 2 de 2</span><h1>Quiz adaptativo</h1><p class="muted">La dificultad se ajusta a tus respuestas: si aciertas sube, si fallas baja.</p></div></div><div id="qz"></div>`;
     const used = new Set();
+    const w = ROLES[S.user.role].weights;
+    const followUps = [...COMP_IDS].sort((a, b) => w[b] - w[a]).slice(0, DIAG_TOTAL - COMP_IDS.length);
     runQuiz($('#qz'), {
-      total: COMP_IDS.length * 2, label: 'Diagnóstico',
+      // 10 preguntas: 1 de nivel medio por competencia (7) + 3 de seguimiento adaptativo
+      // en las competencias más importantes para el rol (si acierta sube a difícil, si falla baja a básico)
+      total: DIAG_TOTAL, label: 'Diagnóstico',
       next: res => {
-        const ci = Math.floor(res.length / 2);
-        if (ci >= COMP_IDS.length) return null;
-        const c = COMP_IDS[ci];
-        const lvl = res.length % 2 === 0 ? 2 : (res[res.length - 1].correct ? 3 : 1);
-        const q = pickQ(c, lvl, used); used.add(q.id); return q;
+        if (res.length >= DIAG_TOTAL) return null;
+        if (res.length < COMP_IDS.length) { const q = pickQ(COMP_IDS[res.length], 2, used); used.add(q.id); return q; }
+        const c = followUps[res.length - COMP_IDS.length];
+        const first = res.find(r => r.q.c === c);
+        const q = pickQ(c, first && first.correct ? 3 : 1, used); used.add(q.id); return q;
       },
       onDone: res => {
         const scores = {};
-        COMP_IDS.forEach((c, i) => {
-          const [a, b] = [res[i * 2], res[i * 2 + 1]];
-          scores[c] = a.correct ? (b.correct ? 100 : 70) : (b.correct ? 40 : 10);
+        COMP_IDS.forEach(c => {
+          const [a, b] = res.filter(r => r.q.c === c);
+          scores[c] = b ? (a.correct ? (b.correct ? 100 : 70) : (b.correct ? 40 : 10)) : (a.correct ? 75 : 25);
           touch(c, scores[c], 4);
         });
         S.tests.pre = { day: S.day, scores, avg: round(avg(Object.values(scores))), answers: res.map(r => ({ id: r.q.id, ok: r.correct })) };
@@ -347,6 +386,7 @@ function viewDiag(el, param) {
         save(); go('diagnostico');
       },
     });
+    if (demoAuto.on) startDemoAuto($('#qz'));
   };
 }
 function diagResults(el) {
@@ -377,36 +417,67 @@ function diagResults(el) {
 function viewRoute(el) {
   if (!S.tests.pre) { el.innerHTML = needPre(); return; }
   const route = computeRoute();
-  const next = route.find(l => !l.done);
-  const done = route.filter(l => l.done).length;
-  const scen = SCENARIOS.map(s => ({ ...s, gap: avg(s.comps.map(c => 100 - effMastery(c))) })).sort((a, b) => b.gap - a.gap);
+  const pending = route.filter(l => !l.done), doneL = route.filter(l => l.done);
+  const next = pending[0];
+  const pct = round(doneL.length / route.length * 100);
+  const domNow = round(avg(effAll())), domPre = S.tests.pre.avg;
+  const due = dueReviews().length, upNext = upcomingReviews()[0];
+  // prácticas ordenadas por la brecha de las competencias que trabajan
+  const gapOf = comps => round(avg(comps.map(c => 100 - effMastery(c))));
+  const prac = [
+    ...SENALA.map(x => ({ icon: 'pointer', type: 'Señala la pieza', title: x.title, route: 'senala/' + x.id, gap: gapOf(x.comps), meta: `${x.steps.length} pasos` })),
+    ...SIMS.map(x => ({ icon: 'star', type: 'Aprende haciendo', title: x.title, route: 'aprende/' + x.id, gap: gapOf(x.comps), meta: `${simPct(simProg(x.id))}% completado` })),
+    ...PROCEDURES.map(x => ({ icon: 'wrench', type: 'Taller virtual', title: x.title, route: 'taller/' + x.id, gap: gapOf(x.comps), meta: `${x.steps.length} tareas`, locked: procLocked(x) })),
+    ...SCENARIOS.map(x => ({ icon: 'alert', type: 'Simulador de fallas', title: x.title, route: 'practica/' + x.id, gap: gapOf(x.comps), meta: x.comps.map(c => comp(c).short).join(', '), locked: scenarioLocked(x) })),
+  ].sort((a, b) => (a.locked - b.locked) || (b.gap - a.gap));
+  const pracItem = p => `<a class="rp-prac ${p.locked ? 'locked' : ''}" href="#/${p.route}"><span class="rp-pi">{{i:${p.locked ? 'lock' : p.icon}}}</span><span><b>${esc(p.title)}</b><small>${esc(p.type)} · ${esc(p.meta)}</small></span><em>Brecha ${p.gap}</em></a>`;
+  const stage = i => i === 0 ? 'Ahora' : i <= 2 ? 'Después' : 'Más adelante';
+  const stepItem = (l, i) => {
+    const lv = levelLabel(l.m), must = l.reasons.some(r => r.startsWith('Obligatorio'));
+    return `<li class="rp-step ${i === 0 ? 'now' : ''}" onclick="go('leccion/${l.id}')">
+      <span class="rp-num">${i + 1}</span>
+      <div class="rp-body"><b>${esc(l.title)}</b>
+        <small>${comp(l.comp).icon} ${esc(compName(l.comp))} · ${l.level === 1 ? 'Básico' : 'Avanzado'} · ${l.min} min</small>
+        ${l.reasons[0] ? `<span class="rp-why ${must ? 'must' : ''}">${must ? '{{i:alert}} ' : ''}${esc(l.reasons[0])}</span>` : ''}</div>
+      <div class="rp-lvl"><span class="lvl ${lv.cls}">${lv.t}</span><div class="meter sm"><i class="${lv.cls}" style="width:${l.m}%"></i></div></div>
+      <span class="rp-go">{{i:arrowRight}}</span></li>`;
+  };
+  let lastStage = '';
   el.innerHTML = `
-    <div class="page-head"><div><span class="eyebrow">Entregable 2 · ${esc(ROLES[S.user.role].name)}</span><h1>Tu ruta de aprendizaje adaptativa</h1>
-      <p class="muted">Se recalcula con cada lección, práctica, repaso y evaluación. Prioridad = brecha × peso del rol, con seguridad AV como requisito.</p></div></div>
-    ${dueReviews().length ? `<div class="banner" onclick="go('repasos')">🔁 Tienes <b>${dueReviews().length}</b> repaso(s) espaciado(s) para hoy → <u>hacerlos ahora</u></div>` : ''}
-    <div class="grid g-1-2">
-      <div class="card">
-        <h3>Dominio: diagnóstico vs. actual</h3>
-        ${Charts.radar({ size: 260, labels: COMPETENCIAS.map(c => c.short), series: [
-          { name: 'Diagnóstico', values: COMP_IDS.map(c => S.tests.pre.scores[c]), color: C.pre, dash: true },
-          { name: 'Actual (con olvido)', values: effAll(), color: C.now }] })}
-        <div class="progress big"><i style="width:${done / route.length * 100}%"></i></div>
-        <p class="muted small">${done} de ${route.length} micro-lecciones completadas</p>
+    <div class="page-head"><div><span class="eyebrow">Plan personalizado · ${esc(ROLES[S.user.role].name)}</span><h1>Mi plan de aprendizaje</h1>
+      <p class="muted">Ordenado según las brechas de tu diagnóstico y lo que más importa para tu rol. Se actualiza solo con cada lección, práctica y evaluación.</p></div></div>
+    ${due ? `<div class="banner" onclick="go('repasos')">{{i:repeat}} Tienes <b>${due}</b> repaso(s) para hoy. Tardan unos 2 minutos. <u>Hacerlos ahora</u></div>` : ''}
+    <div class="rp-top">
+      ${next ? `<div class="card next rp-next">
+        <span class="eyebrow">Tu siguiente paso</span>
+        <h2>${esc(next.title)}</h2>
+        <p class="rp-meta">${comp(next.comp).icon} ${esc(compName(next.comp))} · ${next.level === 1 ? 'Básico' : 'Avanzado'} · {{i:clock}} ${next.min} min</p>
+        <p class="rp-whyl">Por qué te lo recomendamos:</p>
+        <div class="rp-chips">${next.reasons.map(r => `<span class="tag">${esc(r)}</span>`).join('')}</div>
+        <button class="btn primary" onclick="go('leccion/${next.id}')">{{i:play}} Empezar lección</button>
+      </div>` : `<div class="card next rp-next"><span class="eyebrow">¡Plan completado!</span><h2>Terminaste todas las lecciones</h2><p>Mantén tus repasos y practica para no olvidar.</p><button class="btn primary" onclick="go('practicar')">Ir a practicar</button></div>`}
+      <div class="card rp-prog">
+        <div class="ring" style="--p:${pct}"><b>${pct}%</b><small>del plan</small></div>
+        <div class="rp-stats">
+          <div><span>Lecciones</span><b>${doneL.length} de ${route.length}</b></div>
+          <div><span>Dominio</span><b>${domNow}</b><small class="${domNow >= domPre ? 'up' : 'down'}">${domNow >= domPre ? '▲' : '▼'} ${Math.abs(domNow - domPre)} vs. diagnóstico</small></div>
+          <div><span>Repasos</span><b>${due ? `${due} hoy` : 'Al día'}</b>${upNext && !due ? `<small>Próximo: día ${upNext.due}</small>` : ''}</div>
+        </div>
       </div>
-      <div>
-        ${next ? `<div class="card next small-next"><span class="eyebrow">Recomendado ahora</span><h2>${comp(next.comp).icon} ${esc(next.title)}</h2>
-          <p>${next.reasons.map(r => `<span class="tag">${esc(r)}</span>`).join(' ')} <span class="muted">· ${next.min} min</span></p>
-          <button class="btn primary" onclick="go('leccion/${next.id}')">Empezar →</button></div>` : ''}
-        <div class="card"><h3>Micro-lecciones (orden recomendado)</h3>
-          <ol class="route">${route.map((l, i) => `
-            <li class="${l.done ? 'done' : ''}" onclick="go('leccion/${l.id}')">
-              <span class="rn">${l.done ? '✓' : i + 1}</span>
-              <div class="rt"><b>${esc(l.title)}</b><small>${comp(l.comp).icon} ${esc(compName(l.comp))} · Nivel ${l.level} · ${l.min} min</small>
-                <div>${l.done ? `<span class="tag ok">Completada día ${S.lessonsDone[l.id]}</span>` : l.reasons.slice(0, 2).map(r => `<span class="tag ${r.startsWith('Obligatorio') ? 'warn' : ''}">${esc(r)}</span>`).join(' ')}</div></div>
-              <div class="rm"><div class="meter sm"><i class="${levelLabel(l.m).cls}" style="width:${l.m}%"></i></div><small>${l.m}</small></div>
-            </li>`).join('')}</ol></div>
-        <div class="card"><h3>Prácticas recomendadas</h3>
-          <div class="scen-mini">${SENALA.map(sp => `<a href="#/senala/${sp.id}"><b>👆 ${esc(sp.title)}</b><small>Señala la pieza · ${sp.steps.length} pasos</small></a>`).join('')}${SIMS.map(sm => `<a href="#/aprende/${sm.id}"><b>⭐ ${esc(sm.title)}</b><small>Aprende haciendo · ${esc(sm.code)} · ${simPct(simProg(sm.id))}% completado</small></a>`).join('')}${PROCEDURES.map(p => ({ ...p, gap: avg(p.comps.map(c => 100 - effMastery(c))) })).sort((a, b) => b.gap - a.gap).map(p => `<a href="#/taller/${p.id}" class="${procLocked(p) ? 'locked' : ''}"><b>${procLocked(p) ? '🔒 ' : '🔧 '}${esc(p.title)}</b><small>Taller virtual · ${p.steps.length} tareas · brecha ${round(p.gap)}</small></a>`).join('')}${scen.map(s => `<a href="#/practica/${s.id}" class="${scenarioLocked(s) ? 'locked' : ''}"><b>${scenarioLocked(s) ? '🔒 ' : ''}${esc(s.title)}</b><small>Brecha promedio ${round(s.gap)} · ${s.comps.map(c => comp(c).short).join(', ')}</small></a>`).join('')}</div></div>
+    </div>
+    <div class="card">
+      <div class="rp-head"><h3>Tu plan, paso a paso</h3><span class="muted small">${pending.length} lecciones pendientes · toca una para empezarla</span></div>
+      <ol class="rp-list">${pending.map((l, i) => { const st = stage(i); const hdr = st !== lastStage ? `<li class="rp-stage">${st}</li>` : ''; lastStage = st; return hdr + stepItem(l, i); }).join('') || '<li class="muted">No hay lecciones pendientes.</li>'}</ol>
+      ${doneL.length ? `<details class="rp-done"><summary>{{i:check}} Lecciones completadas (${doneL.length})</summary><ul>${doneL.map(l => `<li onclick="go('leccion/${l.id}')"><span class="rp-ok">{{i:check}}</span>${esc(l.title)}<small>${esc(compName(l.comp))} · día ${S.lessonsDone[l.id]}</small></li>`).join('')}</ul></details>` : ''}
+    </div>
+    <div class="grid g-1-1">
+      <div class="card"><h3>Tu mapa de competencias</h3><p class="muted small">Línea punteada: tu diagnóstico. Naranja: tu dominio hoy (incluye lo que se olvida con el tiempo).</p>
+        ${Charts.radar({ size: 250, labels: COMPETENCIAS.map(c => c.short), series: [
+          { name: 'Diagnóstico', values: COMP_IDS.map(c => S.tests.pre.scores[c]), color: C.pre, dash: true },
+          { name: 'Hoy', values: effAll(), color: C.now }] })}</div>
+      <div class="card"><h3>Practica lo que más necesitas</h3><p class="muted small">Ordenadas por la brecha de las competencias que trabajan.</p>
+        <div class="rp-pracs">${prac.slice(0, 4).map(pracItem).join('')}</div>
+        <details class="rp-more"><summary>Ver todas las prácticas (${prac.length})</summary><div class="rp-pracs">${prac.slice(4).map(pracItem).join('')}</div></details>
       </div>
     </div>`;
 }
@@ -429,7 +500,7 @@ function viewLesson(el, id) {
       <div class="lesson">
         <div class="dots">${[...l.cards, 0].map((_, k) => `<i class="${k < i ? 'd' : k === i ? 'c' : ''}"></i>`).join('')}</div>
         <div class="card lcard" id="lc"></div>
-        <div class="card src"><b>📄 Fuente autorizada:</b> ${esc(doc?.title || l.ref)} <span class="muted">(${esc(l.ref)})</span>
+        <div class="card src"><b>{{i:file}} Fuente autorizada:</b> ${esc(doc?.title || l.ref)} <span class="muted">(${esc(l.ref)})</span>
           <button class="btn link" onclick="go('asistente')">Preguntar al asistente</button></div>
       </div>`;
     const lc = $('#lc');
@@ -441,14 +512,14 @@ function viewLesson(el, id) {
       $('#nxt').onclick = () => { i++; draw(); };
     } else {
       const order = shuffle(l.check.o.map((_, k) => k));
-      lc.innerHTML = `<div class="keypoint">💡 ${esc(l.key)}</div><h3>${esc(l.check.q)}</h3>
+      lc.innerHTML = `<div class="keypoint">{{i:bulb}} ${esc(l.key)}</div><h3>${esc(l.check.q)}</h3>
         <div class="opts">${order.map(k => `<button class="opt" data-k="${k}">${esc(l.check.o[k])}</button>`).join('')}</div><div class="quiz-fb"></div>`;
       $$('.opt', lc).forEach(b => b.onclick = () => {
         const ok = +b.dataset.k === l.check.a;
         $$('.opt', lc).forEach(x => { x.disabled = true; if (+x.dataset.k === l.check.a) x.classList.add('right'); });
         if (!ok) b.classList.add('wrong');
         completeLesson(l, ok);
-        $('.quiz-fb', lc).innerHTML = `<div class="fb ${ok ? 'ok' : 'bad'}"><b>${ok ? '✔ ¡Bien!' : '✘ Repasa este punto.'}</b> Se programaron repasos espaciados a 1, 3, 7 y 21 días.</div>
+        $('.quiz-fb', lc).innerHTML = `<div class="fb ${ok ? 'ok' : 'bad'}"><b>${ok ? '{{i:check}} ¡Bien!' : '{{i:x}} Repasa este punto.'}</b> Se programaron repasos espaciados a 1, 3, 7 y 21 días.</div>
           <div class="row"><button class="btn ghost" onclick="go('ruta')">Volver a la ruta</button><button class="btn primary" id="goNext">Siguiente recomendada →</button></div>`;
         $('#goNext').onclick = () => { const n = computeRoute().find(x => !x.done); go(n ? 'leccion/' + n.id : 'practica'); };
       });
@@ -480,15 +551,15 @@ function viewPractice(el, id) {
     el.innerHTML = `
       <div class="page-head"><div><span class="eyebrow">Entregable 3</span><h1>Módulo práctico: simulación de fallas</h1>
       <p class="muted">Diagnóstico guiado paso a paso sobre un modelo 3D del autobús. Las decisiones inseguras se registran como violaciones críticas.</p></div>
-      <div class="row"><button class="btn ghost" onclick="go('inspeccion')">Explorar modelo 3D</button><button class="btn primary" onclick="go('taller')">🔧 Taller virtual de reparación →</button></div></div>
+      <div class="row"><button class="btn ghost" onclick="go('inspeccion')">Explorar modelo 3D</button><button class="btn primary" onclick="go('taller')">{{i:wrench}} Taller virtual de reparación →</button></div></div>
       <div class="grid g-3">${SCENARIOS.map(s => {
         const lock = scenarioLocked(s), last = S.practice.filter(p => p.id === s.id).slice(-1)[0];
         return `<div class="card scen ${lock ? 'locked' : ''}">
-          <span class="tag ${s.mode === 'ev' ? 'ev' : 'di'}">${s.mode === 'ev' ? '🔋 Eléctrico' : '⛽ Diésel'}</span> <span class="tag">${s.level}</span> <span class="tag">${s.min} min</span>
+          <span class="tag ${s.mode === 'ev' ? 'ev' : 'di'}">${s.mode === 'ev' ? '{{i:battery}} Eléctrico' : '{{i:fuel}} Diésel'}</span> <span class="tag">${s.level}</span> <span class="tag">${s.min} min</span>
           <h3>${esc(s.title)}</h3><p class="muted">${esc(s.intro)}</p>
           <p class="small">Competencias: ${s.comps.map(c => comp(c).short).join(', ')}</p>
           ${last ? `<p class="small">Último intento: <b>${last.score}</b> ${last.violations.length ? '<span class="tag bad">violación</span>' : ''}</p>` : ''}
-          ${lock ? `<div class="lockmsg">🔒 Requiere la micro-lección <b>${esc(LESSONS.find(l => l.id === s.requires.lesson).title)}</b> o dominio ≥ ${s.requires.mastery} en Seguridad AV.</div>
+          ${lock ? `<div class="lockmsg">{{i:lock}} Requiere la micro-lección <b>${esc(LESSONS.find(l => l.id === s.requires.lesson).title)}</b> o dominio ≥ ${s.requires.mastery} en Seguridad AV.</div>
             <button class="btn" onclick="go('leccion/${s.requires.lesson}')">Ir a la lección</button>`
           : `<button class="btn primary" onclick="go('practica/${s.id}')">${last ? 'Reintentar' : 'Iniciar'} →</button>`}
         </div>`; }).join('')}</div>`;
@@ -497,7 +568,7 @@ function viewPractice(el, id) {
   if (scenarioLocked(sc)) return go('practica');
 
   el.innerHTML = `
-    <div class="page-head"><div><a href="#/practica" class="back">← Escenarios</a><span class="eyebrow">${sc.mode === 'ev' ? '🔋 Autobús eléctrico' : '⛽ Autobús diésel'} · Simulación</span><h1>${esc(sc.title)}</h1></div></div>
+    <div class="page-head"><div><a href="#/practica" class="back">← Escenarios</a><span class="eyebrow">${sc.mode === 'ev' ? '{{i:battery}} Autobús eléctrico' : '{{i:fuel}} Autobús diésel'} · Simulación</span><h1>${esc(sc.title)}</h1></div></div>
     <div class="sim">
       <div class="card viewer">
         <canvas id="cv"></canvas>
@@ -518,13 +589,13 @@ function viewPractice(el, id) {
     scene.highlight = n.focus; scene.selected = null; scene.focusOn(n.focus);
     const order = shuffle(n.opts.map((_, i) => i));
     panel.innerHTML = `
-      ${idx === 0 ? `<div class="intro">📋 ${esc(sc.intro)}</div>` : ''}
+      ${idx === 0 ? `<div class="intro">{{i:clipboard}} ${esc(sc.intro)}</div>` : ''}
       <div class="steps">${keys.map((k, i) => `<i class="${i < idx ? 'd' : i === idx ? 'c' : ''}"></i>`).join('')}</div>
       <span class="eyebrow">Paso ${idx + 1} de ${keys.length} · ${esc(n.title)}</span>
       <h3>${esc(n.text)}</h3>
       <div class="opts">${order.map(i => `<button class="opt" data-i="${i}">${esc(n.opts[i].t)}</button>`).join('')}</div>
       <div class="quiz-fb" id="fb"></div>
-      <div class="jobaid"><button class="btn link" id="aid">📄 Consultar documentación (ayuda en el trabajo)</button><div id="aidtxt"></div></div>`;
+      <div class="jobaid"><button class="btn link" id="aid">{{i:file}} Consultar documentación (ayuda en el trabajo)</button><div id="aidtxt"></div></div>`;
     $('#aid').onclick = () => {
       const d = DOCS.find(x => x.id === COMPONENTS[n.focus]?.doc);
       st.lookups++; S.docLookups++;
@@ -539,14 +610,14 @@ function viewPractice(el, id) {
         st.steps.push({ title: n.title, attempts: st.attempts + 1, got, pts: o.pts });
         $$('.opt', panel).forEach(x => x.disabled = true);
         b.classList.add('right');
-        fb.innerHTML = `<div class="fb ok"><b>✔</b> ${esc(o.fb)}</div><button class="btn primary" id="cont">Continuar →</button>`;
+        fb.innerHTML = `<div class="fb ok"><b>{{i:check}}</b> ${esc(o.fb)}</div><button class="btn primary" id="cont">Continuar →</button>`;
         $('#cont').onclick = () => { st.node = o.next; st.attempts = 0; drawNode(); };
       } else {
         st.attempts++;
         st.errors.push(o.tag);
         if (o.safety) st.violations.push(o.tag);
         b.disabled = true; b.classList.add('wrong');
-        fb.innerHTML = `<div class="fb ${o.safety ? 'critical' : 'bad'}"><b>${o.safety ? '⚠ ' : '✘ '}</b>${esc(o.fb)}<br><small>Elige otra opción.</small></div>`;
+        fb.innerHTML = `<div class="fb ${o.safety ? 'critical' : 'bad'}"><b>${o.safety ? '{{i:alert}} ' : '{{i:x}} '}</b>${esc(o.fb)}<br><small>Elige otra opción.</small></div>`;
         if (o.safety) { const v = $('.viewer'); v.classList.add('shake'); setTimeout(() => v.classList.remove('shake'), 600); }
       }
     });
@@ -572,7 +643,7 @@ function viewPractice(el, id) {
       <span class="eyebrow">Resultado · evaluación práctica por rúbrica</span>
       <div class="score ${passed ? 'pass' : 'fail'}"><b>${score}</b><span>${passed ? 'Aprobado' : crit ? 'No aprobado · violación crítica de seguridad' : 'No aprobado'}</span></div>
       <table class="tbl"><thead><tr><th>Paso</th><th>Intentos</th><th>Puntos</th></tr></thead><tbody>
-        ${st.steps.map(s => `<tr><td>${s.attempts === 1 ? '✅' : '⚠️'} ${esc(s.title)}</td><td>${s.attempts}</td><td>${round(s.got)}/${s.pts}</td></tr>`).join('')}
+        ${st.steps.map(s => `<tr><td>${s.attempts === 1 ? '{{i:check}}' : '{{i:alert}}'} ${esc(s.title)}</td><td>${s.attempts}</td><td>${round(s.got)}/${s.pts}</td></tr>`).join('')}
       </tbody></table>
       <div class="rub">
         <div><span>Tiempo</span><b>${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}</b></div>
@@ -589,13 +660,14 @@ function viewerTools() {
   return `<div class="vtools">
     <button class="vt on" data-a="xray" title="Rayos X">Rayos X</button>
     <button class="vt" data-a="vr" title="Vista estéreo para visor VR tipo cardboard">VR</button>
-    <button class="vt" data-a="full" title="Pantalla completa">⛶</button>
+    <button class="vt" data-a="full" title="Pantalla completa">{{i:expand}}</button>
     <button class="vt" data-a="in">＋</button><button class="vt" data-a="out">－</button>
   </div>`;
 }
 function mountScene(canvas, mode, onPick) {
   const scene = new E3D.Scene(canvas, { xray: true });
-  scene.setMeshes(E3D.buildBus(mode));
+  const model = currentModel();
+  if (model) applyModelToScene(scene, model, mode); else scene.setMeshes(E3D.buildBus(mode));
   scene.labels = Object.fromEntries(Object.entries(COMPONENTS).map(([k, v]) => [k, v.name]));
   scene.onPick = onPick;
   cleanup.push(() => scene.destroy());
@@ -615,11 +687,12 @@ function mountScene(canvas, mode, onPick) {
    VISTA: Inspección 3D libre
    ========================================================= */
 function viewInspect(el) {
-  let mode = 'ev';
+  const model = currentModel();
+  let mode = model && model.power === 'diesel' ? 'diesel' : 'ev';
   el.innerHTML = `
-    <div class="page-head"><div><span class="eyebrow">Modelo 3D · realidad virtual ligera</span><h1>Inspección de componentes</h1>
-      <p class="muted">Gira, acerca y toca cualquier componente. Activa VR para usarlo con un visor de teléfono.</p></div>
-      <div class="seg" id="modeSeg"><button class="on" data-m="ev">🔋 Eléctrico</button><button data-m="diesel">⛽ Diésel</button></div></div>
+    <div class="page-head"><div><span class="eyebrow">Modelo 3D · realidad virtual ligera</span><h1>${model ? esc(model.name) : 'Inspección de componentes'}</h1>
+      <p class="muted">Gira, acerca y toca cualquier componente. Activa VR para usarlo con un visor de teléfono.${model ? ` <a href="#/practicar/elegir">Cambiar autobús</a>` : ''}</p></div>
+      <div class="seg" id="modeSeg"><button class="${mode === 'ev' ? 'on' : ''}" data-m="ev">{{i:battery}} ${model && model.power === 'hibrido' ? 'Tren eléctrico' : 'Eléctrico'}</button><button class="${mode === 'diesel' ? 'on' : ''}" data-m="diesel">{{i:fuel}} ${model && model.power === 'hibrido' ? 'Motor diésel' : 'Diésel'}</button></div></div>
     <div class="sim">
       <div class="card viewer tall"><canvas id="cv"></canvas>${viewerTools()}</div>
       <div class="card panel"><div id="info"><h3>Selecciona un componente</h3><p class="muted">Toca una pieza en el modelo o en la lista: verás su función, especificaciones, fallas, seguridad, herramientas y las tareas de reparación que puedes practicar.</p></div>
@@ -634,17 +707,17 @@ function viewInspect(el) {
     const tasks = partTasks(k);
     const tabs = [['info', 'Información'], ['fallas', 'Fallas'], ['seg', 'Seguridad'], ['tools', 'Herramientas'], ['tareas', `Tareas (${tasks.reduce((s, x) => s + x.steps.length, 0) + (PART_TASKS[k] || []).length})`]];
     let body = '';
-    if (tab === 'info') body = `<p>${esc(pi.fn || c.desc)}</p>${pi.ubic ? `<p class="muted small">📍 ${esc(pi.ubic)}</p>` : ''}${pi.specs ? `<h4>Especificaciones</h4>${ul(pi.specs)}` : ''}
-      ${d ? `<div class="docfrag"><b>📄 ${esc(d.title)}</b> <span class="muted">(${esc(d.id)})</span><p>${esc(d.text)}</p></div>` : ''}`;
+    if (tab === 'info') body = `<p>${esc(pi.fn || c.desc)}</p>${pi.ubic ? `<p class="muted small">{{i:pin}} ${esc(pi.ubic)}</p>` : ''}${pi.specs ? `<h4>Especificaciones</h4>${ul(pi.specs)}` : ''}
+      ${d ? `<div class="docfrag"><b>{{i:file}} ${esc(d.title)}</b> <span class="muted">(${esc(d.id)})</span><p>${esc(d.text)}</p></div>` : ''}`;
     if (tab === 'fallas') body = `<h4>Fallas comunes</h4>${ul(pi.fallas || ['—'])}<h4>Síntomas</h4>${ul(pi.sintomas || ['—'])}`;
-    if (tab === 'seg') body = `<div class="warnbox">⚠ ${esc(pi.seguridad || 'Sigue el procedimiento del manual de servicio.')}</div>${HV_PARTS.includes(k) ? '<p class="small">Componente de <b>alto voltaje</b>: requiere desenergización, LOTO y verificación de ausencia de tensión antes de intervenirlo.</p>' : ''}`;
+    if (tab === 'seg') body = `<div class="warnbox">{{i:alert}} ${esc(pi.seguridad || 'Sigue el procedimiento del manual de servicio.')}</div>${HV_PARTS.includes(k) ? '<p class="small">Componente de <b>alto voltaje</b>: requiere desenergización, LOTO y verificación de ausencia de tensión antes de intervenirlo.</p>' : ''}`;
     if (tab === 'tools') body = `<p class="muted small">Toca una herramienta para ver su ficha.</p><div class="toolgrid sm">${(pi.tools || []).map(t => `<button class="toolcard" data-tool="${t}"><span>${TOOLS[t].icon}</span><b>${esc(TOOLS[t].name)}</b><small>${esc(TOOLS[t].cat)}</small></button>`).join('')}</div>`;
     const quick = PART_TASKS[k] || [];
-    if (tab === 'tareas') body = (quick.length ? `<h4>Inspección y mantenimiento</h4><ul class="qtasks">${quick.map(([t, x]) => `<li><button class="qt" data-tool="${t}" title="${esc(TOOLS[t].name)}">${TOOLS[t].icon}</button><span>${esc(x)}</span></li>`).join('')}</ul>` : '') + (tasks.length ? '<h4>Procedimientos de reparación</h4>' : '') + (tasks.length ? tasks.map(x => `<div class="taskgrp"><b>${esc(x.p.title)}</b><ol>${x.steps.map(s => `<li value="${s.n}">${s.tool ? TOOLS[s.tool].icon : '✋'} ${esc(s.title)} <span class="muted small">— ${esc(s.instr)}</span></li>`).join('')}</ol>${S.user ? `<button class="btn sm primary" onclick="go('taller/${x.p.id}')">Practicar en el taller →</button>` : ''}</div>`).join('') : '');
-    $('#info').innerHTML = `<span class="eyebrow">${comp(c.comp).icon} ${esc(compName(c.comp))}${HV_PARTS.includes(k) ? ' · ⚡ AV' : ''}</span><h3>${esc(c.name)}</h3>
+    if (tab === 'tareas') body = (quick.length ? `<h4>Inspección y mantenimiento</h4><ul class="qtasks">${quick.map(([t, x]) => `<li><button class="qt" data-tool="${t}" title="${esc(TOOLS[t].name)}">${TOOLS[t].icon}</button><span>${esc(x)}</span></li>`).join('')}</ul>` : '') + (tasks.length ? '<h4>Procedimientos de reparación</h4>' : '') + (tasks.length ? tasks.map(x => `<div class="taskgrp"><b>${esc(x.p.title)}</b><ol>${x.steps.map(s => `<li value="${s.n}">${s.tool ? TOOLS[s.tool].icon : '{{i:hand}}'} ${esc(s.title)} <span class="muted small">— ${esc(s.instr)}</span></li>`).join('')}</ol>${S.user ? `<button class="btn sm primary" onclick="go('taller/${x.p.id}')">Practicar en el taller →</button>` : ''}</div>`).join('') : '');
+    $('#info').innerHTML = `<span class="eyebrow">${comp(c.comp).icon} ${esc(compName(c.comp))}${HV_PARTS.includes(k) ? ' · {{i:bolt}} AV' : ''}</span><h3>${esc(c.name)}</h3>
       <div class="tabs">${tabs.map(([t, n]) => `<button data-t="${t}" class="${t === tab ? 'on' : ''}">${n}</button>`).join('')}</div>
       <div class="tabbody">${body}</div>
-      <div class="row">${S.user && l ? `<button class="btn sm" onclick="go('leccion/${l.id}')">📚 ${esc(l.title)}</button>` : ''}<button class="btn sm ghost" id="fullSheet">Ficha completa</button></div>`;
+      <div class="row">${S.user && l ? `<button class="btn sm" onclick="go('leccion/${l.id}')">{{i:book}} ${esc(l.title)}</button>` : ''}<button class="btn sm ghost" id="fullSheet">Ficha completa</button></div>`;
     $$('#info .tabs button').forEach(b => b.onclick = () => { tab = b.dataset.t; showInfo(k, true); });
     $$('#info .toolcard, #info .qt').forEach(b => b.onclick = () => openModal(toolSheet(b.dataset.tool)));
     $('#fullSheet').onclick = () => openModal(partSheet(k));
@@ -661,7 +734,8 @@ function viewInspect(el) {
   $$('#modeSeg button').forEach(b => b.onclick = () => {
     mode = b.dataset.m;
     $$('#modeSeg button').forEach(x => x.classList.toggle('on', x === b));
-    scene.setMeshes(E3D.buildBus(mode)); scene.selected = scene.highlight = null; scene.target = [0, 1.5, 0];
+    if (model) applyModelToScene(scene, model, mode); else scene.setMeshes(E3D.buildBus(mode));
+    scene.selected = scene.highlight = null; scene.target = [0, 1.5, 0];
     chips();
   });
 }
@@ -731,7 +805,7 @@ function viewEvals(el, param) {
         ${post ? '<span class="tag ok">Completado</span>' : `<button class="btn primary" ${trained ? '' : 'disabled'} onclick="go('evaluaciones/post')">Iniciar post-test</button>`}</div>
       <div class="card ev-card ${delayed ? 'done' : ''}"><span class="eyebrow">3 · Revisión diferida</span><h2>${delayed ? delayed.avg : '—'}</h2>
         <p class="muted">${delayed ? `Día ${delayed.day} (${delayed.day - post.day} días después)` : !post ? 'Disponible tras el post-test.' : daysLeft > 0 ? `Disponible en ${daysLeft} día(s) simulados.` : '¿Lo retienes? Mídelo ahora.'}</p>
-        ${delayed ? '<span class="tag ok">Completado</span>' : post ? (daysLeft > 0 ? `<button class="btn" onclick="advanceDays(${daysLeft})">⏩ Simular ${daysLeft} días</button>` : `<button class="btn primary" onclick="go('evaluaciones/delayed')">Iniciar revisión diferida</button>`) : ''}</div>
+        ${delayed ? '<span class="tag ok">Completado</span>' : post ? (daysLeft > 0 ? `<button class="btn" onclick="advanceDays(${daysLeft})">{{i:forward}} Simular ${daysLeft} días</button>` : `<button class="btn primary" onclick="go('evaluaciones/delayed')">Iniciar revisión diferida</button>`) : ''}</div>
     </div>
     <div class="grid g-2-1">
       <div class="card"><h3>Resultados por competencia</h3>
@@ -795,12 +869,12 @@ function viewReviews(el, param) {
     <div class="grid g-2-1">
       <div>
         <div class="card next">${due.length ? `<span class="eyebrow">Para hoy (día ${S.day})</span><h2>${due.length} repaso(s) pendiente(s)</h2><p>${[...new Set(due.map(r => compName(r.c)))].join(' · ')}</p><button class="btn primary" onclick="go('repasos/go')">Hacer repaso (≈2 min) →</button>`
-          : `<h2>Nada pendiente hoy 🎉</h2><p class="muted">${up.length ? `Próximo repaso en el día ${up[0].due}.` : 'Completa lecciones para programar repasos.'}</p>`}</div>
+          : `<h2>Nada pendiente hoy </h2><p class="muted">${up.length ? `Próximo repaso en el día ${up[0].due}.` : 'Completa lecciones para programar repasos.'}</p>`}</div>
         <div class="card"><h3>Curva de olvido proyectada (dominio promedio)</h3>${forgettingChart()}</div>
       </div>
       <div class="card"><h3>Calendario</h3>
         <ul class="cal">${up.slice(0, 12).map(r => `<li><span class="d">Día ${r.due}</span>${comp(r.c).icon} ${esc(compName(r.c))}<small>+${r.interval} d</small></li>`).join('') || '<li class="muted">Sin repasos programados</li>'}</ul>
-        ${done.length ? `<h4>Completados</h4><ul class="cal">${done.slice(0, 8).map(r => `<li><span class="d">Día ${r.doneDay}</span>${r.ok ? '✅' : '🔁'} ${esc(compName(r.c))}</li>`).join('')}</ul>` : ''}</div>
+        ${done.length ? `<h4>Completados</h4><ul class="cal">${done.slice(0, 8).map(r => `<li><span class="d">Día ${r.doneDay}</span>${r.ok ? '{{i:check}}' : '{{i:repeat}}'} ${esc(compName(r.c))}</li>`).join('')}</ul>` : ''}</div>
     </div>`;
 }
 function forgettingChart() {
@@ -877,7 +951,7 @@ function viewAssistant(el) {
       S.unanswered.push({ q, day: S.day }); log('asistente', `Pregunta sin fuente: "${q}"`);
     } else {
       const [a, b] = hits;
-      chat.push({ who: 'bot', html: `<p>${esc(a.doc.text)}</p><div class="cite">📄 Fuente: <b>${esc(a.doc.title)}</b> · ${esc(a.doc.id)} · relevancia ${a.score.toFixed(1)}</div>${b ? `<div class="cite sec">También relevante: ${esc(b.doc.title)} (${esc(b.doc.id)})</div>` : ''}` });
+      chat.push({ who: 'bot', html: `<p>${esc(a.doc.text)}</p><div class="cite">{{i:file}} Fuente: <b>${esc(a.doc.title)}</b> · ${esc(a.doc.id)} · relevancia ${a.score.toFixed(1)}</div>${b ? `<div class="cite sec">También relevante: ${esc(b.doc.title)} (${esc(b.doc.id)})</div>` : ''}` });
       S.docLookups++;
     }
     save(); drawChat();
@@ -894,9 +968,11 @@ function viewDashboard(el, tab = 'tecnico') {
   if (!S.tests.pre) { el.innerHTML = needPre(); return; }
   el.innerHTML = `
     <div class="page-head"><div><span class="eyebrow">Entregable 5</span><h1>Tablero de indicadores</h1></div>
-      <div class="seg"><button class="${tab !== 'supervisor' ? 'on' : ''}" onclick="go('tablero/tecnico')">👷 Técnico</button><button class="${tab === 'supervisor' ? 'on' : ''}" onclick="go('tablero/supervisor')">📋 Supervisor</button></div></div>
+      <div class="seg"><button class="${tab === 'tecnico' ? 'on' : ''}" onclick="go('tablero/tecnico')">{{i:user}} Técnico</button><button class="${tab === 'supervisor' ? 'on' : ''}" onclick="go('tablero/supervisor')">{{i:clipboard}} Equipo</button><button class="${tab === 'errores' ? 'on' : ''}" onclick="go('tablero/errores')">{{i:x}} Errores comunes</button></div></div>
     <div id="dash"></div>`;
-  tab === 'supervisor' ? dashSupervisor($('#dash')) : dashTech($('#dash'));
+  if (tab === 'supervisor') dashSupervisor($('#dash'));
+  else if (tab === 'errores') dashErrors($('#dash'));
+  else dashTech($('#dash'));
 }
 function dashTech(el) {
   const { pre, post, delayed } = S.tests;
@@ -926,14 +1002,14 @@ function dashTech(el) {
         { name: 'Pre', values: COMP_IDS.map(c => pre.scores[c]), color: C.pre },
         ...(post ? [{ name: 'Post', values: COMP_IDS.map(c => post.scores[c]), color: C.post }] : []),
         ...(delayed ? [{ name: 'Diferida', values: COMP_IDS.map(c => delayed.scores[c]), color: C.delayed }] : [])] })}</div>
-      <div class="card"><h3>Errores recurrentes</h3>${rec.length ? `<ul class="errs">${rec.slice(0, 8).map(e => `<li><span class="n">${e.n}×</span>${esc(e.label)}<small>${e.kind}</small></li>`).join('')}</ul>` : '<p class="muted">Sin errores recurrentes. 👍</p>'}
+      <div class="card"><h3>Errores recurrentes</h3>${rec.length ? `<ul class="errs">${rec.slice(0, 8).map(e => `<li><span class="n">${e.n}×</span>${esc(e.label)}<small>${e.kind}</small></li>`).join('')}</ul>` : '<p class="muted">Sin errores recurrentes. </p>'}
         <h4>Insignias</h4><div class="badges">${Object.entries(BADGES).map(([k, b]) => `<div class="bdg ${S.badges.includes(k) ? 'got' : ''}" title="${esc(b.desc)}"><span>${b.icon}</span><small>${esc(b.name)}</small></div>`).join('')}</div></div>
     </div>
     <div class="grid g-2-1">
       <div class="card"><h3>Curva de olvido proyectada</h3>${forgettingChart()}</div>
       <div class="card"><h3>Historial (trazabilidad)</h3>
         <ul class="timeline">${S.log.slice().reverse().slice(0, 25).map(l => `<li><span class="d">Día ${l.day}</span><span class="tag">${esc(l.type)}</span> ${esc(l.text)}</li>`).join('')}</ul>
-        <button class="btn ghost" id="exp">⬇ Exportar historial (xAPI JSON)</button></div>
+        <button class="btn ghost" id="exp">{{i:download}} Exportar historial (xAPI JSON)</button></div>
     </div>`;
   $('#exp').onclick = () => {
     const actor = { name: S.user.name, role: ROLES[S.user.role].name };
@@ -946,13 +1022,170 @@ function teamData() {
   const t = TEAM_SEED.map(x => ({ ...x, me: false }));
   if (S.user && S.tests.pre) {
     const errs = Object.keys(S.errors);
-    t.unshift({ name: S.user.name + ' (tú)', role: S.user.role, xp: S.xp, pre: S.tests.pre.avg, post: S.tests.post?.avg ?? null, delayed: S.tests.delayed?.avg ?? null,
-      viol: [...S.practice, ...(S.procs || [])].reduce((s, p) => s + p.violations.length, 0), m: Object.fromEntries(COMP_IDS.map(c => [c, effMastery(c)])), errs, me: true });
+    // tus errores reales se suman al análisis del equipo
+    const errCounts = {};
+    ERROR_CATALOG.forEach(e => { const n = e.tags.reduce((s, tg) => s + (S.errors[tg] || 0), 0); if (n) errCounts[e.id] = n; });
+    const answers = {};
+    ['pre', 'post', 'delayed'].forEach(k => (S.tests[k]?.answers || []).forEach(a => { answers[a.id] = a.ok ? 0 : -1; }));
+    t.unshift({ name: S.user.name + ' (tú)', role: S.user.role, taller: S.user.taller || TALLERES[1], xp: S.xp, pre: S.tests.pre.avg, post: S.tests.post?.avg ?? null, delayed: S.tests.delayed?.avg ?? null,
+      viol: [...S.practice, ...(S.procs || [])].reduce((s, p) => s + p.violations.length, 0), m: Object.fromEntries(COMP_IDS.map(c => [c, effMastery(c)])), errs, errCounts, answers, stepErr: {}, me: true });
   }
   return t;
 }
+let teamFilter = { taller: '', role: '', cat: '', sel: null, proc: 'bujias', all: false };
+const filterTeam = t => t.filter(x => (!teamFilter.taller || x.taller === teamFilter.taller) && (!teamFilter.role || x.role === teamFilter.role));
+function teamFiltersHTML(withCat) {
+  return `<div class="card filters">
+    <label>Taller<select id="fTaller"><option value="">Todos los talleres</option>${TALLERES.map(t => `<option ${teamFilter.taller === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+    <label>Rol<select id="fRole"><option value="">Todos los roles</option>${Object.entries(ROLES).map(([k, r]) => `<option value="${k}" ${teamFilter.role === k ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></label>
+    ${withCat ? `<div class="catchips">${['', ...ERROR_CATS].map(c => `<button data-c="${c}" class="${teamFilter.cat === c ? 'on' : ''}">${c ? CAT_ICON[c] + ' ' + c : 'Todas'}</button>`).join('')}</div>` : ''}
+    <span class="muted small fnote">Datos simulados de ${TEAM_SEED.length} técnicos + tus resultados</span>
+  </div>`;
+}
+function bindTeamFilters(el, redraw) {
+  $('#fTaller', el).onchange = e => { teamFilter.taller = e.target.value; teamFilter.sel = null; redraw(); };
+  $('#fRole', el).onchange = e => { teamFilter.role = e.target.value; teamFilter.sel = null; redraw(); };
+  $$('.catchips button', el).forEach(b => b.onclick = () => { teamFilter.cat = b.dataset.c; teamFilter.sel = null; redraw(); });
+}
+const CAT_ICON = { Seguridad: '{{i:alert}}', Procedimiento: '{{i:wrench}}', 'Diagnóstico': '{{i:search}}', 'Identificación': '{{i:pointer}}', Conocimiento: '{{i:clipboard}}' };
+const CAT_CLS = { Seguridad: 'bad', Procedimiento: 'warn', 'Diagnóstico': 'info', 'Identificación': 'ev', Conocimiento: '' };
+
+/* ---------- Análisis: ¿en qué se equivoca más la gente? ---------- */
+function teamErrorStats(team) {
+  const n = team.length || 1;
+  const rows = ERROR_CATALOG.map(e => {
+    const who = team.filter(t => (t.errCounts || {})[e.id]);
+    const times = who.reduce((s, t) => s + t.errCounts[e.id], 0);
+    const rec = who.filter(t => t.errCounts[e.id] >= 2).length;
+    const byTaller = TALLERES.map(tl => { const g = team.filter(t => t.taller === tl); return { tl, pct: g.length ? round(g.filter(t => (t.errCounts || {})[e.id]).length / g.length * 100) : null }; });
+    const byRole = Object.keys(ROLES).map(r => { const g = team.filter(t => t.role === r); return { r, pct: g.length ? round(g.filter(t => (t.errCounts || {})[e.id]).length / g.length * 100) : null }; });
+    return { ...e, who: who.length, pct: round(who.length / n * 100), times, avgTimes: who.length ? (times / who.length).toFixed(1) : '0', recPct: who.length ? round(rec / who.length * 100) : 0, byTaller, byRole, me: team.some(t => t.me && (t.errCounts || {})[e.id]) };
+  }).sort((a, b) => b.pct - a.pct || b.times - a.times);
+  const questions = QUESTIONS.map(q => {
+    const ans = team.map(t => (t.answers || {})[q.id]).filter(v => v !== undefined);
+    const wrong = ans.filter(v => v !== 0);
+    const opts = [1, 2, 3].map(k => wrong.filter(v => v === k).length);
+    const top = opts.indexOf(Math.max(...opts)) + 1;
+    return { q, pct: ans.length ? round(wrong.length / ans.length * 100) : 0, n: ans.length, topWrong: q.o[top], topWrongPct: wrong.length ? round(Math.max(...opts) / wrong.length * 100) : 0 };
+  }).sort((a, b) => b.pct - a.pct);
+  const procs = TEAM_PROCESSES.map(p => {
+    const names = p.steps();
+    const g = team.filter(t => t.stepErr && t.stepErr[p.id]);
+    const steps = names.map((nm, k) => ({ nm, pct: g.length ? round(g.filter(t => t.stepErr[p.id][k]).length / g.length * 100) : 0 }));
+    return { ...p, steps };
+  });
+  return { rows, questions, procs };
+}
+/* Evolución simulada de un error: 4 semanas antes y 6 después de asignar la práctica correctiva */
+const TREND_WEEKS = 10, TREND_ACTION = 4;
+function errorTrend(r) {
+  let h = 7; for (const ch of r.id + (teamFilter.taller || '') + (teamFilter.role || '')) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0;
+  const rnd = () => { h = (Math.imul(h, 1103515245) + 12345) | 0; return ((h >>> 8) & 0xffff) / 0xffff; };
+  const start = Math.max(3, r.pct);
+  const keep = r.safety ? 0.22 : r.cat === 'Identificación' ? 0.35 : r.cat === 'Diagnóstico' ? 0.45 : 0.4;   // fracción que persiste
+  const values = Array.from({ length: TREND_WEEKS }, (_, w) => w < TREND_ACTION
+    ? Math.round(start * (0.93 + rnd() * 0.14))
+    : Math.round(start * (keep + (1 - keep) * Math.exp(-(w - TREND_ACTION + 1) * 0.6)) * (0.92 + rnd() * 0.14)));
+  const before = round(avg(values.slice(0, TREND_ACTION))), after = round(avg(values.slice(-3)));
+  return { values, before, after, drop: before ? round((before - after) / before * 100) : 0 };
+}
+function dashErrors(el) {
+  const draw = () => {
+    const team = filterTeam(teamData());
+    const { rows, questions, procs } = teamErrorStats(team);
+    const shown = rows.filter(r => !teamFilter.cat || r.cat === teamFilter.cat);
+    const sel = rows.find(r => r.id === teamFilter.sel) || shown[0] || rows[0];
+    const n = team.length;
+    const withViol = team.filter(t => ERROR_CATALOG.some(e => e.safety && (t.errCounts || {})[e.id])).length;
+    const topSafety = rows.find(r => r.safety);
+    const topId = rows.find(r => r.cat === 'Identificación');
+    const topQ = questions[0];
+    const worstTaller = topSafety ? [...topSafety.byTaller].filter(x => x.pct != null).sort((a, b) => b.pct - a.pct)[0] : null;
+    const totalErr = team.reduce((s, t) => s + Object.values(t.errCounts || {}).reduce((a, b) => a + b, 0), 0);
+    const proc = procs.find(p => p.id === teamFilter.proc) || procs[0];
+    const maxStep = Math.max(...proc.steps.map(s => s.pct));
+    const bar = (pct, cls = '') => `<div class="ebar"><i class="${cls}" style="width:${Math.max(2, pct)}%"></i></div>`;
+    el.innerHTML = `
+      ${teamFiltersHTML(true)}
+      <div class="kpis">
+        ${kpi('Técnicos analizados', n, teamFilter.taller || 'todos los talleres')}
+        ${kpi('Errores registrados', totalErr, `${(totalErr / (n || 1)).toFixed(1)} por técnico`)}
+        ${kpi('Error más común', (rows[0]?.pct ?? 0) + '%', 'de los técnicos lo cometió', 'warn')}
+        ${kpi('Con violación de seguridad', round(withViol / (n || 1) * 100) + '%', `${withViol} técnicos`, withViol ? 'bad' : 'ok')}
+      </div>
+      <div class="card insights"><h3>{{i:bulb}} Lo que dicen los datos</h3><ul>
+        ${rows[0] ? `<li><b>El error más frecuente</b> es «${esc(rows[0].label)}»: lo cometió el <b>${rows[0].pct}%</b> de los técnicos, y el ${rows[0].recPct}% de ellos lo repitió.</li>` : ''}
+        ${topSafety && topSafety.pct ? `<li class="bad"><b>La falla de seguridad más común</b> es «${esc(topSafety.label)}» (<b>${topSafety.pct}%</b>)${worstTaller && !teamFilter.taller ? `, sobre todo en <b>${esc(worstTaller.tl)}</b> (${worstTaller.pct}%)` : ''}.</li>` : ''}
+        ${topId && topId.pct ? `<li><b>La pieza que más se confunde:</b> buscaban «${esc(topId.pair[0])}» y tocaron «${esc(topId.pair[1])}» (<b>${topId.pct}%</b>).</li>` : ''}
+        ${topQ ? `<li><b>La pregunta más fallada</b> (${topQ.pct}%): «${esc(topQ.q.q)}». La respuesta equivocada más elegida fue «${esc(topQ.topWrong)}».</li>` : ''}
+        ${rows[0] ? (() => { const tr = errorTrend(rows[0]); return `<li class="ok"><b>Después de asignar la práctica correctiva</b>, «${esc(rows[0].label)}» bajó de <b>${tr.before}%</b> a <b>${tr.after}%</b> de los técnicos (−${tr.drop}%).</li>`; })() : ''}
+        ${rows[0] ? `<li class="act">{{i:target}} <b>Acción sugerida:</b> ${esc(rows[0].action.text)}.</li>` : ''}
+      </ul></div>
+      <div class="grid g-2-1">
+        <div class="card"><h3>¿En qué se equivoca más la gente?</h3><p class="muted small">% de técnicos que cometieron el error al menos una vez. Toca uno para ver el detalle.</p>
+          <ol class="erank">${shown.map((r, i) => `<li data-id="${r.id}" class="${r.id === sel.id ? 'on' : ''}">
+            <span class="er-n">${i + 1}</span>
+            <div class="er-main"><div class="er-top"><b>${esc(r.label)}</b>${r.me ? '<span class="tag info">también tú</span>' : ''}</div>
+              <div class="er-bar">${bar(r.pct, r.safety ? 'bad' : '')}<span>${r.pct}%</span></div>
+              <small><span class="tag ${CAT_CLS[r.cat]}">${CAT_ICON[r.cat]} ${r.cat}</span> ${r.who} técnicos · ${r.times} veces</small></div>
+          </li>`).join('')}</ol></div>
+        <div class="card errdetail">${sel ? `
+          <span class="tag ${CAT_CLS[sel.cat]}">${CAT_ICON[sel.cat]} ${sel.cat}</span>
+          <h3>${esc(sel.label)}</h3>
+          <div class="ed-big"><b>${sel.pct}%</b><span>de los técnicos<br>(${sel.who} de ${n})</span></div>
+          <div class="ed-stats"><div><span>Veces en promedio</span><b>${sel.avgTimes}</b></div><div><span>Lo repitieron</span><b>${sel.recPct}%</b></div><div><span>Competencia</span><b>${comp(sel.comp).icon} ${esc(comp(sel.comp).short)}</b></div></div>
+          <p class="small"><b>{{i:pin}} Dónde ocurre:</b> ${esc(sel.where)}</p>
+          ${sel.pair ? `<p class="small"><b>{{i:pointer}} Confusión:</b> buscaban «${esc(sel.pair[0])}» → tocaron «${esc(sel.pair[1])}»</p>` : ''}
+          <h4>Por taller</h4>${sel.byTaller.filter(x => x.pct != null).map(x => `<div class="mini"><span>${esc(x.tl.split(' · ')[0])}</span>${bar(x.pct, sel.safety ? 'bad' : '')}<b>${x.pct}%</b></div>`).join('')}
+          <h4>Por rol</h4>${sel.byRole.filter(x => x.pct != null).map(x => `<div class="mini"><span>${esc(ROLES[x.r].name.replace('Técnico de ', '').replace('Técnico ', ''))}</span>${bar(x.pct)}<b>${x.pct}%</b></div>`).join('')}
+          <div class="actionbox">{{i:target}} <b>Acción sugerida:</b> ${esc(sel.action.text)}<button class="btn sm primary" onclick="go('${sel.action.route}')">Ir →</button></div>` : '<p class="muted">Sin datos con estos filtros.</p>'}
+        </div>
+      </div>
+      ${sel ? (() => {
+        const tr = errorTrend(sel);
+        const top = shown.slice(0, 6).map(r => ({ r, t: errorTrend(r) }));
+        const mx = Math.max(20, Math.ceil((Math.max(...tr.values) + 4) / 20) * 20);
+        return `<div class="grid g-2-1">
+        <div class="card"><h3>{{i:trendDown}} Antes y después: ${esc(sel.label)}</h3>
+          <p class="muted small">% de técnicos que cometieron el error cada semana. En la semana ${TREND_ACTION + 1} se asignó la práctica correctiva: «${esc(sel.action.text)}».</p>
+          ${Charts.line({ xs: Array.from({ length: TREND_WEEKS }, (_, i) => 'Sem ' + (i + 1)), max: mx, unit: '%', dots: true, xLabel: 'Semanas',
+            markers: [{ i: TREND_ACTION, label: '▶ Práctica asignada', color: '#f5821f' }],
+            series: [{ name: '% de técnicos con el error', values: tr.values, color: sel.safety ? '#dc2626' : '#0b2d52' }] })}
+        </div>
+        <div class="card ba"><h3>Resultado</h3>
+          <div class="ba-pair"><div><span>Antes</span><b>${tr.before}%</b></div><span class="ba-arrow">→</span><div class="after"><span>Después</span><b>${tr.after}%</b></div></div>
+          <div class="ba-drop">▼ ${tr.drop}% menos técnicos con este error</div>
+          <h4>Top errores: antes → después</h4>
+          ${top.map(({ r, t }) => `<div class="ba-row"><span title="${esc(r.label)}">${esc(r.label)}</span>
+            <div class="ba-bars"><div class="ebar"><i class="pre" style="width:${Math.max(2, t.before)}%"></i></div><div class="ebar"><i class="post" style="width:${Math.max(2, t.after)}%"></i></div></div>
+            <b>${t.before}→${t.after}%</b></div>`).join('')}
+          <div class="legend"><span><i style="background:#94a3b8"></i>Antes</span><span><i style="background:#16a34a"></i>Después</span></div>
+          <p class="muted small">Datos simulados del equipo para el prototipo.</p>
+        </div></div>`; })() : ''}
+      <div class="grid g-1-1">
+        <div class="card"><h3>{{i:pointer}} Piezas que más se confunden</h3><p class="muted small">En «Señala la pieza»: qué buscaban y qué tocaron por error.</p>
+          ${rows.filter(r => r.pair).map(r => `<div class="pairrow"><div><span class="pr-a">${esc(r.pair[0])}</span><span class="pr-arrow">→ tocaron</span><span class="pr-b">${esc(r.pair[1])}</span></div><div class="er-bar">${bar(r.pct)}<span>${r.pct}%</span></div></div>`).join('')}</div>
+        <div class="card"><h3>{{i:clipboard}} Preguntas más falladas</h3><p class="muted small">Diagnóstico, post-test y revisión diferida.</p>
+          <ol class="qfail">${questions.slice(0, 6).map(x => `<li><div class="qf-top"><span class="tag">${comp(x.q.c).icon} ${esc(comp(x.q.c).short)}</span><b>${x.pct}% falla</b></div>
+            <p>${esc(x.q.q)}</p><small>{{i:check}} Correcta: «${esc(x.q.o[x.q.a])}» · {{i:x}} Más elegida por error: «${esc(x.topWrong)}» (${x.topWrongPct}% de los que fallaron)</small></li>`).join('')}</ol></div>
+      </div>
+      <div class="card"><h3>{{i:trendDown}} Paso más difícil de cada proceso</h3><p class="muted small">% de técnicos que se equivocaron en cada paso.</p>
+        <div class="catchips proc">${procs.map(p => `<button data-p="${p.id}" class="${p.id === proc.id ? 'on' : ''}">${esc(p.name)}</button>`).join('')}</div>
+        <div class="steprates">${proc.steps.map((s, k) => `<div class="sr ${s.pct === maxStep && maxStep > 0 ? 'max' : ''}"><span class="sr-n">${k + 1}</span><span class="sr-t">${esc(s.nm)}</span>${bar(s.pct, s.pct === maxStep ? 'bad' : '')}<b>${s.pct}%</b></div>`).join('')}</div></div>
+      <div class="card"><h3>{{i:factory}} Errores por taller</h3><p class="muted small">% de técnicos de cada taller con al menos un error de cada tipo.</p>
+        <div class="tscroll"><table class="tbl heat errheat"><thead><tr><th>Taller</th>${ERROR_CATS.map(c => `<th>${CAT_ICON[c]} ${c}</th>`).join('')}<th>Técnicos</th></tr></thead><tbody>
+        ${TALLERES.map(tl => { const g = teamData().filter(t => t.taller === tl && (!teamFilter.role || t.role === teamFilter.role)); return `<tr><td><b>${esc(tl)}</b></td>${ERROR_CATS.map(c => { const v = g.length ? round(g.filter(t => ERROR_CATALOG.some(e => e.cat === c && (t.errCounts || {})[e.id])).length / g.length * 100) : 0; return `<td class="hc" style="background:hsl(${Math.round(120 - v * 1.2)},65%,${v > 60 ? 40 : 36}%)">${v}%</td>`; }).join('')}<td>${g.length}</td></tr>`; }).join('')}
+        </tbody></table></div></div>`;
+    bindTeamFilters(el, draw);
+    $$('.erank li', el).forEach(li => li.onclick = () => { teamFilter.sel = li.dataset.id; draw(); if (matchMedia('(max-width: 1100px)').matches) $('.errdetail', el).scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    $$('.catchips.proc button', el).forEach(b => b.onclick = () => { teamFilter.proc = b.dataset.p; draw(); });
+  };
+  draw();
+}
 function dashSupervisor(el) {
-  const team = teamData();
+  const redraw = () => dashSupervisor(el);
+  const team = filterTeam(teamData());
+  const list = (arr, f) => arr.slice(0, 6).map(f).join(', ') + (arr.length > 6 ? ` y ${arr.length - 6} más` : '');
   const teamAvg = COMP_IDS.map(c => round(avg(team.map(t => t.m[c]))));
   const errCount = {};
   team.forEach(t => t.errs.forEach(e => errCount[e] = (errCount[e] || 0) + 1));
@@ -962,35 +1195,38 @@ function dashSupervisor(el) {
   const withViol = team.filter(t => t.viol > 0);
   const heat = v => `hsl(${Math.round(v * 1.2)}, 70%, ${v < 40 ? 38 : 34}%)`;
   el.innerHTML = `
+    ${teamFiltersHTML(false)}
     <div class="kpis">
-      ${kpi('Técnicos', team.length, 'en el grupo')}
+      ${kpi('Técnicos', team.length, teamFilter.taller || 'en todos los talleres')}
       ${kpi('Dominio del equipo', round(avg(teamAvg)), 'promedio')}
       ${kpi('Ganancia promedio', (avg(team.filter(t => t.post != null).map(t => (t.post - t.pre) / (100 - t.pre)))).toFixed(2), 'normalizada')}
       ${kpi('Retención promedio', round(avg(team.filter(t => t.delayed != null).map(t => t.delayed / t.post * 100))) + '%', 'diferida / post')}
       ${kpi('Riesgo seguridad AV', hvRisk.length, 'dominio < 60', hvRisk.length ? 'bad' : 'ok')}
     </div>
-    <div class="card alerts"><h3>⚠ Alertas accionables</h3><ul>
-      ${hvRisk.length ? `<li class="bad"><b>Brecha crítica en Seguridad AV:</b> ${hvRisk.map(t => esc(t.name)).join(', ')} → bloquear prácticas AV y asignar lección obligatoria.</li>` : ''}
-      ${withViol.length ? `<li class="bad"><b>Violaciones de seguridad en simulación:</b> ${withViol.map(t => `${esc(t.name)} (${t.viol})`).join(', ')} → retroalimentación 1:1.</li>` : ''}
-      ${forget.length ? `<li class="warn"><b>Riesgo de olvido (caída ≥ 12 pts post→diferida):</b> ${forget.map(t => esc(t.name)).join(', ')} → reforzar repasos.</li>` : ''}
-      ${topErr[0] ? `<li class="warn"><b>Error más común del equipo:</b> ${esc(ERROR_LABELS[topErr[0][0]] || topErr[0][0])} (${topErr[0][1]} técnicos) → crear micro-lección / caso focalizado.</li>` : ''}
+    <div class="card alerts"><h3>{{i:alert}} Alertas accionables</h3><ul>
+      ${hvRisk.length ? `<li class="bad"><b>Brecha crítica en Seguridad AV:</b> ${list(hvRisk, t => esc(t.name))} → bloquear prácticas AV y asignar lección obligatoria.</li>` : ''}
+      ${withViol.length ? `<li class="bad"><b>Violaciones de seguridad en simulación:</b> ${list(withViol, t => `${esc(t.name)} (${t.viol})`)} → retroalimentación 1:1.</li>` : ''}
+      ${forget.length ? `<li class="warn"><b>Riesgo de olvido (caída ≥ 12 pts post→diferida):</b> ${list(forget, t => esc(t.name))} → reforzar repasos.</li>` : ''}
+      ${topErr[0] ? `<li class="warn"><b>Error más común del equipo:</b> ${esc(ERROR_LABELS[topErr[0][0]] || topErr[0][0])} (${topErr[0][1]} técnicos) → <a href="#/tablero/errores">ver el análisis de errores comunes</a>.</li>` : ''}
       ${S.unanswered.length ? `<li class="info"><b>Brechas de contenido:</b> ${S.unanswered.length} pregunta(s) al asistente sin fuente autorizada → enviar a especialista.</li>` : ''}
     </ul></div>
     <div class="card"><h3>Mapa de calor de competencias</h3><div class="tscroll"><table class="tbl heat">
-      <thead><tr><th>Técnico</th><th>Rol</th>${COMPETENCIAS.map(c => `<th title="${esc(c.name)}">${c.icon} ${esc(c.short)}</th>`).join('')}<th>Pre→Post→Dif.</th><th>Viol.</th><th>XP</th></tr></thead>
-      <tbody>${team.map(t => `<tr class="${t.me ? 'me' : ''}"><td><b>${esc(t.name)}</b></td><td class="small">${esc(ROLES[t.role].name)}</td>
+      <thead><tr><th>Técnico</th><th>Taller</th><th>Rol</th>${COMPETENCIAS.map(c => `<th title="${esc(c.name)}">${c.icon} ${esc(c.short)}</th>`).join('')}<th>Pre→Post→Dif.</th><th>Viol.</th></tr></thead>
+      <tbody>${(teamFilter.all ? team : team.slice(0, 12)).map(t => `<tr class="${t.me ? 'me' : ''}"><td><b>${esc(t.name)}</b></td><td class="small">${esc((t.taller || '').split(' · ')[0])}</td><td class="small">${esc(ROLES[t.role].name)}</td>
         ${COMP_IDS.map(c => `<td class="hc" style="background:${heat(t.m[c])}">${t.m[c]}</td>`).join('')}
-        <td class="small">${t.pre} → ${t.post ?? '—'} → ${t.delayed ?? '—'}</td><td>${t.viol ? `<span class="tag bad">${t.viol}</span>` : '0'}</td><td>${t.xp}</td></tr>`).join('')}
-      <tr class="avg"><td><b>Promedio</b></td><td></td>${teamAvg.map(v => `<td class="hc" style="background:${heat(v)}">${v}</td>`).join('')}<td></td><td></td><td></td></tr></tbody></table></div>
-      <button class="btn ghost" id="csv">⬇ Exportar CSV</button></div>
+        <td class="small">${t.pre} → ${t.post ?? '—'} → ${t.delayed ?? '—'}</td><td>${t.viol ? `<span class="tag bad">${t.viol}</span>` : '0'}</td></tr>`).join('')}
+      <tr class="avg"><td><b>Promedio</b></td><td></td><td></td>${teamAvg.map(v => `<td class="hc" style="background:${heat(v)}">${v}</td>`).join('')}<td></td><td></td></tr></tbody></table></div>
+      <div class="row">${team.length > 12 ? `<button class="btn ghost" id="allRows">${teamFilter.all ? 'Ver menos' : `Ver los ${team.length} técnicos`}</button>` : ''}<button class="btn ghost" id="csv">{{i:download}} Exportar CSV</button></div></div>
     <div class="grid g-1-1">
       <div class="card"><h3>Perfil del equipo</h3>${Charts.radar({ size: 260, labels: COMPETENCIAS.map(c => c.short), series: [{ name: 'Promedio del equipo', values: teamAvg, color: C.team }] })}</div>
-      <div class="card"><h3>🏆 Ranking (gamificación)</h3><ol class="rank">${[...team].sort((a, b) => b.xp - a.xp).map(t => `<li class="${t.me ? 'me' : ''}"><span>${esc(t.name)}</span><b>${t.xp} XP</b></li>`).join('')}</ol>
+      <div class="card"><h3>{{i:trophy}} Ranking por dominio</h3><ol class="rank">${[...team].map(t => ({ ...t, dom: round(avg(COMP_IDS.map(c => t.m[c]))) })).sort((a, b) => b.dom - a.dom).slice(0, 10).map(t => `<li class="${t.me ? 'me' : ''}"><span>${esc(t.name)}</span><b>${t.dom} / 100</b></li>`).join('')}</ol>
         <h4>Errores más frecuentes del equipo</h4><ul class="errs">${topErr.map(([k, n]) => `<li><span class="n">${n}</span>${esc(ERROR_LABELS[k] || k)}</li>`).join('')}</ul></div>
     </div>`;
+  bindTeamFilters(el, redraw);
+  const ar = $('#allRows', el); if (ar) ar.onclick = () => { teamFilter.all = !teamFilter.all; redraw(); };
   $('#csv').onclick = () => {
-    const head = ['tecnico', 'rol', ...COMP_IDS, 'pre', 'post', 'diferida', 'violaciones', 'xp'];
-    const rows = team.map(t => [t.name, ROLES[t.role].name, ...COMP_IDS.map(c => t.m[c]), t.pre, t.post ?? '', t.delayed ?? '', t.viol, t.xp]);
+    const head = ['tecnico', 'taller', 'rol', ...COMP_IDS, 'pre', 'post', 'diferida', 'violaciones'];
+    const rows = team.map(t => [t.name, t.taller || '', ROLES[t.role].name, ...COMP_IDS.map(c => t.m[c]), t.pre, t.post ?? '', t.delayed ?? '', t.viol]);
     download('equipo_competencias.csv', [head, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n'), 'text/csv');
   };
 }
@@ -999,7 +1235,7 @@ function download(name, text, type) {
   a.href = URL.createObjectURL(new Blob([text], { type }));
   a.download = name; document.body.appendChild(a); a.click(); a.remove();
   // en entornos donde la descarga está bloqueada (p. ej. vista previa incrustada), también se copia al portapapeles
-  try { navigator.clipboard.writeText(text).then(() => toast(`⬇ ${name} · también copiado al portapapeles`), () => toast(`⬇ ${name}`)); } catch (e) { toast(`⬇ ${name}`); }
+  try { navigator.clipboard.writeText(text).then(() => toast(`{{i:download}} ${name} · también copiado al portapapeles`), () => toast(`{{i:download}} ${name}`)); } catch (e) { toast(`{{i:download}} ${name}`); }
 }
 
 /* =========================================================
@@ -1022,31 +1258,31 @@ function viewScale(el) {
       </div>
     </div>
     <div class="grid g-3">
-      ${scaleCard('📚 Integración con documentación técnica', [
+      ${scaleCard('{{i:book}} Integración con documentación técnica', [
         'Conector a la documentación oficial: cada fragmento conserva ID, versión y vigencia; si el manual cambia, las lecciones y reactivos afectados se marcan para revisión.',
         'El asistente solo responde con fragmentos recuperados y siempre cita la fuente; sin fuente → escala al especialista y registra la brecha.',
         'Búsqueda contextual por modelo de autobús, VIN y código de falla (DTC).',
         'Estándares de interoperabilidad: xAPI/cmi5 hacia el LMS corporativo, SSO (SAML/OIDC).'])}
-      ${scaleCard('📈 Escala a cientos de técnicos', [
+      ${scaleCard('{{i:trendUp}} Escala a cientos de técnicos', [
         'Arquitectura multi-tenant por país/concesionario/taller, con roles: técnico, instructor, supervisor, especialista.',
         'Servicios sin estado en contenedores con auto-escalado; contenido estático y modelos 3D vía CDN.',
         'El motor adaptativo es ligero (cálculo en el dispositivo); el servidor solo sincroniza eventos.',
         'Banco de reactivos con formas paralelas y calibración por dificultad (TRI) conforme crecen los datos.'])}
-      ${scaleCard('📶 Conectividad limitada', [
+      ${scaleCard('{{i:signal}} Conectividad limitada', [
         'PWA instalable: service worker con caché del shell, lecciones, modelos 3D e índice de documentos.',
         'Estado local (IndexedDB) y cola de eventos xAPI que se sincroniza al recuperar la señal.',
         'Paquetes de contenido por rol descargables por Wi-Fi del taller; actualizaciones diferenciales.',
         'Este prototipo ya funciona sin conexión: motor 3D propio sin librerías y búsqueda local.'])}
-      ${scaleCard('🔐 Protección de datos', [
+      ${scaleCard('{{i:lock}} Protección de datos', [
         'Datos personales mínimos; analítica de equipo agregada y seudonimizada.',
         'Cifrado en tránsito y en reposo; control de acceso por rol; bitácora de auditoría.',
         'Alineado a la LFPDPPP (México) y a las políticas internas de Volvo; aviso de privacidad al técnico.',
         'Los casos de falla reales se anonimizan (sin VIN ni cliente) antes de usarse en simulación.'])}
-      ${scaleCard('🥽 Realidad virtual y aumentada', [
+      ${scaleCard('{{i:vr}} Realidad virtual y aumentada', [
         'Hoy: modelo 3D interactivo + modo estéreo para visor de teléfono.',
         'Siguiente: WebXR para AR en tablet (señalar componentes sobre el autobús real, sin intervenirlo).',
         'Modelos CAD simplificados (glTF) exportados desde ingeniería, con niveles de detalle.'])}
-      ${scaleCard('🎯 Métricas de impacto para Volvo', [
+      ${scaleCard('{{i:target}} Métricas de impacto para Volvo', [
         'Tiempo hasta competencia (días para alcanzar “Competente”).',
         'Ganancia normalizada y retención a 7/21/60 días.',
         'Recurrencia de errores y violaciones de seguridad en simulación.',
@@ -1111,8 +1347,8 @@ function loadDemo() {
 
 /* ---------------- Arranque ---------------- */
 function init() {
-  $('#plus1').onclick = () => advanceDays(1);
-  $('#plus7').onclick = () => advanceDays(7);
+  ['#sidebar', '#tabbar', '#topbar'].forEach(sel => { const e = $(sel); if (e) e.innerHTML = e.innerHTML; });   // íconos del menú
+
   $('#menuBtn').onclick = () => document.body.classList.toggle('nav-open');
   $('#moreBtn').onclick = () => document.body.classList.toggle('nav-open');
   $('#scrim').onclick = () => document.body.classList.remove('nav-open');
@@ -1168,7 +1404,7 @@ function toolSheet(id) {
       <div><h4>Inspección antes de usar</h4><p>${esc(t.inspect)}</p></div>
       <div><h4>Errores comunes</h4>${ul(t.errores)}</div>
     </div>
-    <div class="warnbox">⚠ ${esc(t.seguridad)}</div>
+    <div class="warnbox">{{i:alert}} ${esc(t.seguridad)}</div>
     ${procs.length ? `<h4>Se usa en</h4><div class="chips">${procs.map(p => `<button data-go="taller/${p.id}">${esc(p.title)}</button>`).join('')}</div>` : ''}`;
 }
 function partTasks(id) {
@@ -1178,18 +1414,18 @@ function partSheet(id) {
   const c = COMPONENTS[id], pi = PART_INFO[id] || {};
   const d = DOCS.find(x => x.id === c.doc), l = LESSONS.find(x => x.id === c.lesson);
   const tasks = partTasks(id);
-  return `<div class="sheet-head"><span class="sheet-icon">${comp(c.comp).icon}</span><div><span class="eyebrow">${esc(compName(c.comp))}${HV_PARTS.includes(id) ? ' · ⚡ ALTO VOLTAJE' : ''}</span><h2>${esc(c.name)}</h2></div></div>
-    <p>${esc(pi.fn || c.desc)}</p>${pi.ubic ? `<p class="muted small">📍 Ubicación: ${esc(pi.ubic)}</p>` : ''}
+  return `<div class="sheet-head"><span class="sheet-icon">${comp(c.comp).icon}</span><div><span class="eyebrow">${esc(compName(c.comp))}${HV_PARTS.includes(id) ? ' · {{i:bolt}} ALTO VOLTAJE' : ''}</span><h2>${esc(c.name)}</h2></div></div>
+    <p>${esc(pi.fn || c.desc)}</p>${pi.ubic ? `<p class="muted small">{{i:pin}} Ubicación: ${esc(pi.ubic)}</p>` : ''}
     <div class="sheet-grid">
       ${pi.specs ? `<div><h4>Especificaciones</h4>${ul(pi.specs)}</div>` : ''}
       ${pi.fallas ? `<div><h4>Fallas comunes</h4>${ul(pi.fallas)}</div>` : ''}
       ${pi.sintomas ? `<div><h4>Síntomas</h4>${ul(pi.sintomas)}</div>` : ''}
       ${pi.tools ? `<div><h4>Herramientas</h4><div class="chips">${pi.tools.map(t => `<button data-tool="${t}">${TOOLS[t].icon} ${esc(TOOLS[t].name)}</button>`).join('')}</div></div>` : ''}
     </div>
-    ${pi.seguridad ? `<div class="warnbox">⚠ ${esc(pi.seguridad)}</div>` : ''}
+    ${pi.seguridad ? `<div class="warnbox">{{i:alert}} ${esc(pi.seguridad)}</div>` : ''}
     ${(PART_TASKS[id] || []).length ? `<h4>Inspección y mantenimiento</h4><ul class="qtasks">${PART_TASKS[id].map(([t, x]) => `<li><button class="qt" data-tool="${t}" title="${esc(TOOLS[t].name)}">${TOOLS[t].icon}</button><span>${esc(x)}</span></li>`).join('')}</ul>` : ''}
-    ${tasks.length ? `<h4>Procedimientos de reparación</h4>${tasks.map(x => `<div class="taskgrp"><b>${esc(x.p.title)}</b><ol>${x.steps.map(s => `<li value="${s.n}">${s.tool ? TOOLS[s.tool].icon : '✋'} ${esc(s.title)}</li>`).join('')}</ol>${S.user ? `<button class="btn sm" data-go="taller/${x.p.id}">Practicar →</button>` : ''}</div>`).join('')}` : ''}
-    ${d ? `<div class="docfrag"><b>📄 ${esc(d.title)}</b> <span class="muted">(${esc(d.id)})</span><p>${esc(d.text)}</p></div>` : ''}
+    ${tasks.length ? `<h4>Procedimientos de reparación</h4>${tasks.map(x => `<div class="taskgrp"><b>${esc(x.p.title)}</b><ol>${x.steps.map(s => `<li value="${s.n}">${s.tool ? TOOLS[s.tool].icon : '{{i:hand}}'} ${esc(s.title)}</li>`).join('')}</ol>${S.user ? `<button class="btn sm" data-go="taller/${x.p.id}">Practicar →</button>` : ''}</div>`).join('')}` : ''}
+    ${d ? `<div class="docfrag"><b>{{i:file}} ${esc(d.title)}</b> <span class="muted">(${esc(d.id)})</span><p>${esc(d.text)}</p></div>` : ''}
     ${S.user && l ? `<button class="btn" data-go="leccion/${l.id}">Micro-lección: ${esc(l.title)} →</button>` : ''}`;
 }
 
@@ -1205,11 +1441,11 @@ function viewTaller(el, id) {
         const lock = procLocked(p), last = (S.procs || []).filter(x => x.id === p.id).slice(-1)[0];
         const tools = [...new Set(p.steps.map(s => s.tool).filter(Boolean))];
         return `<div class="card scen ${lock ? 'locked' : ''}">
-          <span class="tag ${p.mode === 'ev' ? 'ev' : 'di'}">${p.mode === 'ev' ? '🔋 Eléctrico' : '⛽ Diésel'}</span> <span class="tag">${p.level}</span> <span class="tag">${p.steps.length} tareas</span> ${p.hv ? '<span class="tag warn">⚡ AV</span>' : ''}
+          <span class="tag ${p.mode === 'ev' ? 'ev' : 'di'}">${p.mode === 'ev' ? '{{i:battery}} Eléctrico' : '{{i:fuel}} Diésel'}</span> <span class="tag">${p.level}</span> <span class="tag">${p.steps.length} tareas</span> ${p.hv ? '<span class="tag warn">{{i:bolt}} AV</span>' : ''}
           <h3>${esc(p.title)}</h3><p class="muted">${esc(p.intro)}</p>
           <p class="small toolrow">${tools.map(t => `<span title="${esc(TOOLS[t].name)}">${TOOLS[t].icon}</span>`).join('')}</p>
           ${last ? `<p class="small">Último intento: <b>${last.score}</b> · ${last.mode} ${last.violations.length ? '<span class="tag bad">violación</span>' : ''}</p>` : ''}
-          ${lock ? `<div class="lockmsg">🔒 Requiere aprobar <b>${esc(PROCEDURES.find(x => x.id === p.requires.proc).title)}</b> o dominio ≥ ${p.requires.mastery} en Seguridad AV.</div><button class="btn" onclick="go('taller/${p.requires.proc}')">Ir al requisito</button>`
+          ${lock ? `<div class="lockmsg">{{i:lock}} Requiere aprobar <b>${esc(PROCEDURES.find(x => x.id === p.requires.proc).title)}</b> o dominio ≥ ${p.requires.mastery} en Seguridad AV.</div><button class="btn" onclick="go('taller/${p.requires.proc}')">Ir al requisito</button>`
             : `<button class="btn primary" onclick="go('taller/${p.id}')">${last ? 'Repetir' : 'Iniciar'} →</button>`}
         </div>`; }).join('')}</div>
       <div class="card"><h3>Catálogo de herramientas</h3><p class="muted small">Toca una herramienta para ver su ficha: especificaciones, uso, inspección, errores comunes y seguridad.</p>
@@ -1225,12 +1461,12 @@ function viewTaller(el, id) {
 function runProcedure(el, proc) {
   const steps = proc.steps;
   el.innerHTML = `
-    <div class="page-head"><div><a href="#/taller" class="back">← Taller virtual</a><span class="eyebrow">${proc.mode === 'ev' ? '🔋 Autobús eléctrico' : '⛽ Autobús diésel'} · Procedimiento</span><h1>${esc(proc.title)}</h1></div></div>
+    <div class="page-head"><div><a href="#/taller" class="back">← Taller virtual</a><span class="eyebrow">${proc.mode === 'ev' ? '{{i:battery}} Autobús eléctrico' : '{{i:fuel}} Autobús diésel'} · Procedimiento</span><h1>${esc(proc.title)}</h1></div></div>
     <div class="sim taller">
       <div class="tcol">
         <div class="card viewer"><canvas id="cv"></canvas>${viewerTools()}
           <div class="hud" id="hud" hidden></div>
-          <div class="equipped" id="equipped">✋ Sin herramienta</div>
+          <div class="equipped" id="equipped">{{i:hand}} Sin herramienta</div>
           <div class="pickinfo" id="pickinfo">Elige una herramienta abajo y toca la pieza en el modelo</div>
         </div>
         <div class="card tray">
@@ -1258,14 +1494,14 @@ function runProcedure(el, proc) {
     const k = b.dataset.k;
     st.tool = st.tool === k ? null : k;
     $$('#tools .tool').forEach(x => x.classList.toggle('on', x.dataset.k === st.tool));
-    $('#equipped').innerHTML = st.tool ? `En mano: ${TOOLS[st.tool].icon} <b>${esc(TOOLS[st.tool].name)}</b>` : '✋ Sin herramienta';
+    $('#equipped').innerHTML = st.tool ? `En mano: ${TOOLS[st.tool].icon} <b>${esc(TOOLS[st.tool].name)}</b>` : '{{i:hand}} Sin herramienta';
     $('#cv').classList.toggle('armed', !!st.tool);
     const t = TOOLS[st.tool];
     $('#toolInfo').innerHTML = t ? `
       <div class="ti-head"><span class="ti-icon">${t.icon}</span><div><b>${esc(t.name)}</b><small>${esc(t.cat)}</small></div><button class="btn sm ghost" id="tiFull">Ficha completa</button></div>
       <p>${esc(t.desc)}</p>
       <div class="ti-grid"><div><h5>Especificaciones</h5>${ul(t.specs)}</div><div><h5>Antes de usar</h5><p>${esc(t.inspect)}</p><h5>Evita</h5>${ul(t.errores.slice(0, 2))}</div></div>
-      <div class="warnbox sm">⚠ ${esc(t.seguridad)}</div>` : '<p class="muted small">Sin herramienta en mano.</p>';
+      <div class="warnbox sm">{{i:alert}} ${esc(t.seguridad)}</div>` : '<p class="muted small">Sin herramienta en mano.</p>';
     if (t) $('#tiFull').onclick = () => openModal(toolSheet(st.tool));
     drawAction();
   });
@@ -1273,7 +1509,7 @@ function runProcedure(el, proc) {
   // --- clic en pieza ---
   function onPart(k) {
     const c = COMPONENTS[k], pi = PART_INFO[k] || {};
-    $('#pickinfo').innerHTML = `<b>${esc(c.name)}</b>${HV_PARTS.includes(k) ? ' <span class="tag warn">⚡ AV</span>' : ''} — ${esc(pi.fn || c.desc)} <button class="btn link" id="pfull">Ver ficha</button>`;
+    $('#pickinfo').innerHTML = `<b>${esc(c.name)}</b>${HV_PARTS.includes(k) ? ' <span class="tag warn">{{i:bolt}} AV</span>' : ''} — ${esc(pi.fn || c.desc)} <button class="btn link" id="pfull">Ver ficha</button>`;
     $('#pfull').onclick = () => openModal(partSheet(k));
     if (st.mode && st.phase === 'act' && st.tool) apply(k);
   }
@@ -1294,15 +1530,15 @@ function runProcedure(el, proc) {
     return error('proc-herramienta-incorrecta', guided() ? `Ni la herramienta ni la pieza corresponden. Objetivo: ${toolLabel(step.tool)} → ${partName(step.part)}.` : 'Herramienta y pieza incorrectas para este paso.');
   }
   function fb(cls, html) { const f = $('#pfb'); if (f) f.innerHTML = `<div class="fb ${cls}">${html}</div>`; }
-  function error(tag, msg) { st.errors.push(tag); st.stepErr[st.i]++; fb('bad', `✘ ${esc(msg)}`); }
+  function error(tag, msg) { st.errors.push(tag); st.stepErr[st.i]++; fb('bad', `{{i:x}} ${esc(msg)}`); }
   function violation(tag, msg) {
     st.errors.push(tag); st.violations.push(tag); st.stepErr[st.i] += 2;
-    fb('critical', `⚠ <b>VIOLACIÓN DE SEGURIDAD.</b> ${esc(msg)}`);
+    fb('critical', `{{i:alert}} <b>VIOLACIÓN DE SEGURIDAD.</b> ${esc(msg)}`);
     const v = $('.viewer'); v.classList.add('shake'); setTimeout(() => v.classList.remove('shake'), 600);
   }
   function success(part) {
     const step = steps[st.i];
-    if (step.tool) scene.fx(part === 'self' ? null : part, TOOLS[step.tool].icon);
+    if (step.tool) scene.fx(part === 'self' ? null : part, '✓');
     if (step.anim) scene.animate(step.anim.id, step.anim.type);
     if (step.ppe) st.ppe = true;
     if (step.reading) {
@@ -1330,17 +1566,17 @@ function runProcedure(el, proc) {
     const pct = st.i / steps.length * 100;
     const oldFb = keepFb ? '' : null;
     panel.innerHTML = `
-      <div class="row between"><span class="tag ${guided() ? 'info' : 'warn'}">${guided() ? '🧭 Modo guiado' : '🎓 Modo evaluación'}</span><span class="muted small">Tarea ${st.i + 1} de ${steps.length}</span></div>
+      <div class="row between"><span class="tag ${guided() ? 'info' : 'warn'}">${guided() ? '{{i:route}} Modo guiado' : '{{i:medal}} Modo evaluación'}</span><span class="muted small">Tarea ${st.i + 1} de ${steps.length}</span></div>
       <div class="progress"><i style="width:${pct}%"></i></div>
       <ol class="tasks">${steps.map((s, k) => `<li class="${k < st.i ? 'done' : k === st.i ? 'cur' : ''}">
-        <span class="tk">${k < st.i ? (st.stepErr[k] ? '⚠' : '✓') : k === st.i ? '▶' : k + 1}</span>
+        <span class="tk">${k < st.i ? (st.stepErr[k] ? '{{i:alert}}' : '✓') : k === st.i ? '▶' : k + 1}</span>
         <span>${k <= st.i || guided() ? esc(s.title) : '<span class="muted">Tarea oculta</span>'}</span>
-        ${k <= st.i || guided() ? `<em>${s.tool ? TOOLS[s.tool].icon : s.wait ? '⏱' : '✋'}</em>` : ''}</li>`).join('')}</ol>
+        ${k <= st.i || guided() ? `<em>${s.tool ? TOOLS[s.tool].icon : s.wait ? '{{i:clock}}' : '{{i:hand}}'}</em>` : ''}</li>`).join('')}</ol>
       <div class="stepcard">
         <span class="eyebrow">Tarea ${st.i + 1} · ${esc(step.title)}</span>
         <p class="instr">${esc(step.instr)}</p>
-        ${guided() ? `<p class="small why">💡 <b>Por qué:</b> ${esc(step.why)}</p>` : ''}
-        ${guided() && (step.tool || step.part) && st.phase === 'act' ? `<p class="small target">🎯 Objetivo: ${toolLabel(step.tool)}${step.part && step.part !== 'self' ? ` → <b>${esc(partName(step.part))}</b>` : step.part === 'self' ? ' → en ti' : ''}</p>` : ''}
+        ${guided() ? `<p class="small why">{{i:bulb}} <b>Por qué:</b> ${esc(step.why)}</p>` : ''}
+        ${guided() && (step.tool || step.part) && st.phase === 'act' ? `<p class="small target">{{i:target}} Objetivo: ${toolLabel(step.tool)}${step.part && step.part !== 'self' ? ` → <b>${esc(partName(step.part))}</b>` : step.part === 'self' ? ' → en ti' : ''}</p>` : ''}
         <div id="act"></div>
         <div id="pfb"></div>
       </div>`;
@@ -1351,8 +1587,8 @@ function runProcedure(el, proc) {
     const act = $('#act'); if (!act) return;
     const step = steps[st.i];
     if (st.phase === 'act') {
-      if (step.part === 'self' && step.tool) act.innerHTML = `<button class="btn" id="self" ${st.tool ? '' : 'disabled'}>🙋 Usar ${st.tool ? esc(TOOLS[st.tool].short.toLowerCase()) : 'herramienta'} en mí</button>`;
-      else if (!step.tool && step.wait) act.innerHTML = `<button class="btn primary" id="startWait">⏱ Iniciar espera</button>`;
+      if (step.part === 'self' && step.tool) act.innerHTML = `<button class="btn" id="self" ${st.tool ? '' : 'disabled'}>{{i:user}} Usar ${st.tool ? esc(TOOLS[st.tool].short.toLowerCase()) : 'herramienta'} en mí</button>`;
+      else if (!step.tool && step.wait) act.innerHTML = `<button class="btn primary" id="startWait">{{i:clock}} Iniciar espera</button>`;
       else act.innerHTML = `<p class="muted small">${st.tool ? `Tienes en mano ${TOOLS[st.tool].icon}. Toca la pieza en el modelo 3D.` : 'Elige una herramienta de la caja.'}</p>`;
       const sb = $('#self'); if (sb) sb.onclick = () => apply('self');
       const sw = $('#startWait'); if (sw) sw.onclick = () => { st.phase = 'wait'; drawAction(); };
@@ -1364,7 +1600,7 @@ function runProcedure(el, proc) {
       $$('.opt', act).forEach(b => b.onclick = () => {
         if (+b.dataset.i === c.a) {
           b.classList.add('right'); $$('.opt', act).forEach(x => x.disabled = true);
-          fb('ok', `✔ ${esc(c.fb)}`);
+          fb('ok', `{{i:check}} ${esc(c.fb)}`);
           st.phase = step.input ? 'input' : step.wait ? 'wait' : 'next';
           setTimeout(drawAction, 50);
         } else { b.disabled = true; b.classList.add('wrong'); error('proc-respuesta-incorrecta', c.fb); }
@@ -1378,7 +1614,7 @@ function runProcedure(el, proc) {
       $('#specBtn').onclick = () => openModal(partSheet(step.part));
       $('#valOk').onclick = () => {
         const v = parseFloat($('#valIn').value);
-        if (Math.abs(v - inp.value) <= inp.tol) { scene.fx(step.part, '✅'); fb('ok', `✔ ${v} ${inp.unit}: dentro de especificación.`); st.phase = step.wait ? 'wait' : 'next'; drawAction(); }
+        if (Math.abs(v - inp.value) <= inp.tol) { scene.fx(step.part, '✓'); fb('ok', `{{i:check}} ${v} ${inp.unit}: dentro de especificación.`); st.phase = step.wait ? 'wait' : 'next'; drawAction(); }
         else error('proc-torque-incorrecto', isNaN(v) ? 'Escribe un valor.' : `${v} ${inp.unit} está fuera de especificación. ${v < inp.value ? 'Apriete insuficiente: la conexión puede calentarse o aflojarse.' : 'Apriete excesivo: puedes dañar la terminal o la rosca.'}`);
       };
       return;
@@ -1423,7 +1659,7 @@ function runProcedure(el, proc) {
       <span class="eyebrow">Resultado · ${st.mode === 'guiado' ? 'modo guiado' : 'modo evaluación'}</span>
       <div class="score ${passed ? 'pass' : 'fail'}"><b>${score}</b><span>${passed ? 'Procedimiento aprobado' : crit ? 'No aprobado · violación de seguridad' : 'No aprobado · repite el procedimiento'}</span></div>
       <table class="tbl"><thead><tr><th>Tarea</th><th>Herramienta</th><th>Errores</th></tr></thead><tbody>
-        ${steps.map((s, k) => `<tr><td>${st.stepErr[k] ? '⚠️' : '✅'} ${esc(s.title)}</td><td>${s.tool ? TOOLS[s.tool].icon : '—'}</td><td>${st.stepErr[k]}</td></tr>`).join('')}
+        ${steps.map((s, k) => `<tr><td>${st.stepErr[k] ? '{{i:alert}}' : '{{i:check}}'} ${esc(s.title)}</td><td>${s.tool ? TOOLS[s.tool].icon : '—'}</td><td>${st.stepErr[k]}</td></tr>`).join('')}
       </tbody></table>
       <div class="rub">
         <div><span>Tiempo</span><b>${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}</b></div>
@@ -1438,12 +1674,12 @@ function runProcedure(el, proc) {
 
   // --- elección de modo ---
   panel.innerHTML = `
-    <div class="intro">📋 ${esc(proc.intro)}</div>
+    <div class="intro">{{i:clipboard}} ${esc(proc.intro)}</div>
     <h3>${steps.length} tareas · ${[...new Set(steps.map(s => s.tool).filter(Boolean))].map(t => TOOLS[t].icon).join(' ')}</h3>
     <p class="muted small">Cómo funciona: 1) toma una herramienta de la caja, 2) toca la pieza en el modelo 3D (o "Usar en mí" para el EPP), 3) responde o registra el valor cuando se pida.</p>
     <div class="modes">
-      <button class="modebtn" data-m="guiado"><b>🧭 Modo guiado</b><small>Ves la lista de tareas, el porqué de cada una, la pieza objetivo resaltada y la herramienta sugerida.</small></button>
-      <button class="modebtn" data-m="evaluacion"><b>🎓 Modo evaluación</b><small>Sin pistas: tareas ocultas y sin especificaciones a la vista. Cuenta para tu dominio y para insignias.</small></button>
+      <button class="modebtn" data-m="guiado"><b>{{i:route}} Modo guiado</b><small>Ves la lista de tareas, el porqué de cada una, la pieza objetivo resaltada y la herramienta sugerida.</small></button>
+      <button class="modebtn" data-m="evaluacion"><b>{{i:medal}} Modo evaluación</b><small>Sin pistas: tareas ocultas y sin especificaciones a la vista. Cuenta para tu dominio y para insignias.</small></button>
     </div>`;
   $$('.modebtn', panel).forEach(b => b.onclick = () => {
     st.mode = b.dataset.m; st.start = Date.now();
@@ -1466,15 +1702,15 @@ function viewAprende(el, id) {
       <div class="page-head"><div><span class="eyebrow">Módulo práctico · simulación de procesos</span><h1>Aprende haciendo</h1>
         <p class="muted">Cada módulo sigue tres fases: <b>Saber</b> (micro-cápsula de menos de 5 min), <b>Hacer</b> (arma tu kit y practica guiado sobre las piezas en 3D) y <b>Demostrar</b> (sin pistas, con vidas y cronómetro).</p></div></div>
       <div class="method">
-        <div><span>📖</span><b>1. Saber</b><small>Lo esencial en una tarjeta: flujo, riesgos y valores clave.</small></div>
-        <div><span>🔧</span><b>2. Hacer</b><small>Arma tu kit y repara paso a paso con pistas. Si te equivocas, la pieza se marca en rojo y te explica por qué.</small></div>
-        <div><span>🏅</span><b>3. Demostrar</b><small>Mismo proceso sin pistas: 5 vidas, cronómetro y rúbrica. Una falla de seguridad reprueba.</small></div>
+        <div><span>{{i:book}}</span><b>1. Saber</b><small>Lo esencial en una tarjeta: flujo, riesgos y valores clave.</small></div>
+        <div><span>{{i:wrench}}</span><b>2. Hacer</b><small>Arma tu kit y repara paso a paso con pistas. Si te equivocas, la pieza se marca en rojo y te explica por qué.</small></div>
+        <div><span>{{i:medal}}</span><b>3. Demostrar</b><small>Mismo proceso sin pistas: 5 vidas, cronómetro y rúbrica. Una falla de seguridad reprueba.</small></div>
       </div>
       <div class="modgrid">${SIMS.map(s => {
         const p = simProg(s.id), pct = simPct(p);
-        const ph = [['📖 Saber', p.saber], ['🔧 Hacer', p.hacer != null], ['🏅 Demostrar', p.demo != null && p.demo >= 70]];
+        const ph = [['{{i:book}} Saber', p.saber], ['{{i:wrench}} Hacer', p.hacer != null], ['{{i:medal}} Demostrar', p.demo != null && p.demo >= 70]];
         return `<a class="card modcard" href="#/aprende/${s.id}">
-          <div class="mc-top"><span class="modcode">${esc(s.section.toUpperCase())} · ${esc(s.code)}</span><span class="chip">⏱ ${s.min} min</span></div>
+          <div class="mc-top"><span class="modcode">${esc(s.section.toUpperCase())} · ${esc(s.code)}</span><span class="chip">{{i:clock}} ${s.min} min</span></div>
           <h3>${esc(s.title)} <span class="lvtag">[${esc(s.level)}]</span></h3>
           <p class="muted small">${esc(s.vehicle)} · ${s.steps.length} pasos · ${s.steps.reduce((n, x) => n + x.actions.length, 0)} acciones</p>
           <p class="small">${esc(s.brief)}</p>
@@ -1489,16 +1725,16 @@ function viewAprende(el, id) {
   const draw = () => {
     cleanup.forEach(f => f()); cleanup = [];
     const pct = simPct(p);
-    const tabs = [['saber', '📖', '1. SABER', true], ['hacer', '🔧', '2. HACER', p.saber], ['demostrar', '🏅', '3. DEMOSTRAR', p.hacer != null]];
+    const tabs = [['saber', '{{i:book}}', '1. SABER', true], ['hacer', '{{i:wrench}}', '2. HACER', p.saber], ['demostrar', '{{i:medal}}', '3. DEMOSTRAR', p.hacer != null]];
     el.innerHTML = `
       <div class="modhead card">
-        <button class="backbtn" onclick="go('aprende')" aria-label="Volver">←</button>
+        <button class="backbtn" onclick="go(currentModel() ? 'practicar' : 'aprende')" aria-label="Volver">←</button>
         <div><span class="modcode">${esc(sim.section.toUpperCase())} · ${esc(sim.code)}</span>
           <h1>${esc(sim.title)} <span class="lvtag">[${esc(sim.level)}]</span></h1>
           <small class="muted">${esc(sim.vehicle)} · ${sim.min} min · ${sim.comps.map(c => comp(c).short).join(', ')}</small></div>
       </div>
       <div class="modprog big"><div class="bar"><i style="width:${pct}%"></i></div><b>${pct}%</b></div>
-      <div class="phasetabs">${tabs.map(([k, ic, t, open]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}" ${open ? '' : 'disabled'}>${open ? ic : '🔒'} ${t}</button>`).join('')}</div>
+      <div class="phasetabs">${tabs.map(([k, ic, t, open]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}" ${open ? '' : 'disabled'}>${open ? ic : '{{i:lock}}'} ${t}</button>`).join('')}</div>
       <div id="phase"></div>`;
     $$('.phasetabs button', el).forEach(b => b.onclick = () => { tab = b.dataset.t; draw(); });
     const ph = $('#phase');
@@ -1513,25 +1749,25 @@ function phaseSaber(el, sim, p, next) {
   const s = sim.saber;
   el.innerHTML = `
     <div class="card capsule">
-      <div class="cap-head"><h3>Micro-cápsula</h3><span class="chip">⏱ &lt; 5 min</span></div>
+      <div class="cap-head"><h3>Micro-cápsula</h3><span class="chip">{{i:clock}} &lt; 5 min</span></div>
       <div class="flowbox">
-        <div class="flow-banner">⚡ ${esc(s.banner)}</div>
+        <div class="flow-banner">{{i:bolt}} ${esc(s.banner)}</div>
         <div class="flowrow">${s.flow.map((f, i) => `${i ? '<span class="farrow"></span>' : ''}<div class="fnode ${f.hl ? 'hl' : ''}"><b>${esc(f.t)}</b><small>${esc(f.s)}</small></div>`).join('')}</div>
         <div class="flow-foot">${esc(s.foot)}</div>
       </div>
       <ul class="capbullets">${s.bullets.map(b => `<li>${esc(b)}</li>`).join('')}</ul>
-      <div class="mission">🎯 <b>Tu misión:</b> ${esc(sim.brief)}</div>
+      <div class="mission">{{i:target}} <b>Tu misión:</b> ${esc(sim.brief)}</div>
     </div>
-    <div class="card"><h3>✅ Comprueba que lo entendiste</h3><p class="quiz-q">${esc(s.check.q)}</p>
+    <div class="card"><h3>{{i:check}} Comprueba que lo entendiste</h3><p class="quiz-q">${esc(s.check.q)}</p>
       <div class="opts" id="sopts">${shuffle(s.check.o.map((_, i) => i)).map(i => `<button class="opt" data-i="${i}">${esc(s.check.o[i])}</button>`).join('')}</div><div id="sfb"></div></div>`;
   $$('#sopts .opt').forEach(b => b.onclick = () => {
     const ok = +b.dataset.i === s.check.a;
-    if (!ok) { b.classList.add('wrong'); b.disabled = true; $('#sfb').innerHTML = `<div class="fb bad">✘ Revisa la micro-cápsula: ${esc(s.check.fb)}</div>`; return; }
+    if (!ok) { b.classList.add('wrong'); b.disabled = true; $('#sfb').innerHTML = `<div class="fb bad">{{i:x}} Revisa la micro-cápsula: ${esc(s.check.fb)}</div>`; return; }
     b.classList.add('right'); $$('#sopts .opt').forEach(x => x.disabled = true);
     const first = !p.saber; p.saber = true;
     if (first) { addXP(40, 'Micro-cápsula'); log('aprende', `${sim.title}: fase SABER completada`); }
     save();
-    $('#sfb').innerHTML = `<div class="fb ok">✔ ${esc(s.check.fb)}</div><button class="btn primary" id="toHacer">Ir a 2. HACER →</button>`;
+    $('#sfb').innerHTML = `<div class="fb ok">{{i:check}} ${esc(s.check.fb)}</div><button class="btn primary" id="toHacer">Ir a 2. HACER →</button>`;
     $('#toHacer').onclick = next;
   });
 }
@@ -1541,7 +1777,7 @@ function phaseHacer(el, sim, p, next) {
     const items = shuffle(sim.kit.map((k, i) => ({ ...k, i })));
     el.innerHTML = `
       <div class="card kitgame">
-        <h3>🧰 Mini-juego · Arma tu kit</h3>
+        <h3>{{i:toolbox}} Mini-juego · Arma tu kit</h3>
         <p class="muted">Toca solo lo que necesitas para este trabajo. ¡Cuidado con las trampas!</p>
         <div class="kitlist">${items.map(k => `<button class="kititem" data-i="${k.i}"><span class="kbox"></span><span><b>${esc(k.name)}</b><small>${esc(k.code)}</small></span><em></em></button>`).join('')}</div>
         <div id="kfb"></div>
@@ -1561,17 +1797,17 @@ function phaseHacer(el, sim, p, next) {
       });
       if (!bad) {
         p.kit = true; addXP(30, 'Kit completo'); save();
-        $('#kfb').innerHTML = `<div class="fb ok">✔ ¡Kit completo! Tienes todo lo necesario y ninguna trampa.</div>`;
+        $('#kfb').innerHTML = `<div class="fb ok">{{i:check}} ¡Kit completo! Tienes todo lo necesario y ninguna trampa.</div>`;
         $('#kcheck').textContent = 'Comenzar simulación →';
         $('#kcheck').onclick = () => phaseHacer(el, sim, p, next);
       } else {
         S.errors['kit-incorrecto'] = (S.errors['kit-incorrecto'] || 0) + 1; save();
-        $('#kfb').innerHTML = `<div class="fb bad">✘ ${bad} elemento(s) por corregir: en rojo lo que sobra, en ámbar lo que falta.</div>`;
+        $('#kfb').innerHTML = `<div class="fb bad">{{i:x}} ${bad} elemento(s) por corregir: en rojo lo que sobra, en ámbar lo que falta.</div>`;
       }
     };
     return;
   }
-  el.innerHTML = `<div class="card simintro"><b>🔧 Práctica guiada.</b> La pieza que debes tocar parpadea en naranja y la herramienta sugerida se marca en la caja. Si te equivocas, la pieza se pone en rojo, pierdes una vida ❤ y te explica por qué.</div><div id="simbox"></div>`;
+  el.innerHTML = `<div class="card simintro"><b>{{i:wrench}} Práctica guiada.</b> La pieza que debes tocar parpadea en naranja y la herramienta sugerida se marca en la caja. Si te equivocas, la pieza se pone en rojo, pierdes una vida {{i:heartf}} y te explica por qué.</div><div id="simbox"></div>`;
   runSim($('#simbox'), sim, { guided: true, onDone: r => {
     p.hacer = Math.max(p.hacer ?? 0, r.score);
     recordSim(sim, r, 'guiado');
@@ -1582,8 +1818,8 @@ function phaseHacer(el, sim, p, next) {
 function phaseDemo(el, sim, p) {
   el.innerHTML = `
     <div class="card demointro">
-      <h3>🏅 Demuestra que puedes hacerlo solo</h3>
-      <ul class="rules"><li>❤ 5 vidas: cada error resta 1; una violación de seguridad resta 2 y reprueba.</li><li>🙈 Sin pistas: no se resalta la pieza ni la herramienta.</li><li>⏱ Con cronómetro y calificación por rúbrica.</li></ul>
+      <h3>{{i:medal}} Demuestra que puedes hacerlo solo</h3>
+      <ul class="rules"><li>{{i:heartf}} 5 vidas: cada error resta 1; una violación de seguridad resta 2 y reprueba.</li><li>{{i:eyeOff}} Sin pistas: no se resalta la pieza ni la herramienta.</li><li>{{i:clock}} Con cronómetro y calificación por rúbrica.</li></ul>
       ${p.demo != null ? `<p>Tu mejor resultado: <b>${p.demo}</b>/100</p>` : ''}
       <button class="btn primary" id="startDemo">Comenzar demostración</button>
     </div><div id="simbox"></div>`;
@@ -1620,17 +1856,17 @@ function runSim(box, sim, { guided, onDone }) {
     <div class="simwrap ${guided ? 'guided' : 'exam'}">
       <div class="sim-top">
         <div class="hearts" id="hearts"></div>
-        <span class="chip ${guided ? 'blue' : 'orange'}">${guided ? '🧭 Práctica guiada' : '🎓 Demostración · sin pistas'}</span>
-        <span class="chip timer" id="timer">⏱ 0:00</span>
+        <span class="chip ${guided ? 'blue' : 'orange'}">${guided ? '{{i:route}} Práctica guiada' : '{{i:medal}} Demostración · sin pistas'}</span>
+        <span class="chip timer" id="timer">{{i:clock}} 0:00</span>
       </div>
       <div class="stepper" id="stepper"></div>
       <div class="sim-grid">
         <div class="stage" id="stage">
           <canvas id="scv"></canvas>
           <div class="reading" id="reading" hidden></div>
-          <div class="inhand" id="inhand">✋ Sin herramienta</div>
+          <div class="inhand" id="inhand">{{i:hand}} Sin herramienta</div>
           <div class="stage-msg" id="smsg" hidden></div>
-          <div class="vtools"><button class="vt" data-a="in" title="Acercar">＋</button><button class="vt" data-a="out" title="Alejar">－</button><button class="vt" data-a="reset" title="Vista inicial">⟲</button><button class="vt" data-a="full" title="Pantalla completa">⛶</button></div>
+          <div class="vtools"><button class="vt" data-a="in" title="Acercar">＋</button><button class="vt" data-a="out" title="Alejar">－</button><button class="vt" data-a="reset" title="Vista inicial">⟲</button><button class="vt" data-a="full" title="Pantalla completa">{{i:expand}}</button></div>
           <div class="stage-hint">Arrastra para girar · rueda o pellizco para acercar · toca una pieza</div>
           <div class="overlay" id="ovl" hidden></div>
         </div>
@@ -1649,9 +1885,10 @@ function runSim(box, sim, { guided, onDone }) {
   cleanup.push(() => scene.destroy());
 
   const st = { idx: 0, tool: null, hearts: MAXH, errors: [], violations: [], stepErr: sim.steps.map(() => 0), phase: 'act', ppe: false, safe: false, start: Date.now(), over: false, timers: [] };
-  const tick = setInterval(() => { const s = round((Date.now() - st.start) / 1000); const t = $('#timer', box); if (t && !st.over) t.textContent = `⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }, 1000);
+  const tick = setInterval(() => { const s = round((Date.now() - st.start) / 1000); const t = $('#timer', box); if (t && !st.over) t.textContent = `{{i:clock}} ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }, 1000);
   cleanup.push(() => { clearInterval(tick); st.timers.forEach(clearInterval); });
   const stage = $('#stage', box);
+  attachHandControl(stage, scene);
   const pname = k => sim.parts[k] || COMPONENTS[k]?.name || k;
 
   $$('.vt', box).forEach(b => b.onclick = () => {
@@ -1669,9 +1906,9 @@ function runSim(box, sim, { guided, onDone }) {
     st.tool = st.tool === b.dataset.k ? null : b.dataset.k;
     drawTray();
     const t = TOOLS[st.tool];
-    $('#inhand', box).innerHTML = t ? `En mano: ${t.icon} <b>${esc(t.name)}</b>` : '✋ Sin herramienta';
+    $('#inhand', box).innerHTML = t ? `En mano: ${t.icon} <b>${esc(t.name)}</b>` : '{{i:hand}} Sin herramienta';
     $('#scv', box).classList.toggle('armed', !!t);
-    $('#toolmini', box).innerHTML = t ? `<div class="tm-head"><span>${t.icon}</span><div><b>${esc(t.name)}</b><small>${esc(t.cat)}</small></div><button class="btn sm ghost" id="tmf">Ficha</button></div><p>${esc(t.desc)}</p><div class="warnbox sm">⚠ ${esc(t.seguridad)}</div>` : '<span class="muted small">Sin herramienta en mano.</span>';
+    $('#toolmini', box).innerHTML = t ? `<div class="tm-head"><span>${t.icon}</span><div><b>${esc(t.name)}</b><small>${esc(t.cat)}</small></div><button class="btn sm ghost" id="tmf">Ficha</button></div><p>${esc(t.desc)}</p><div class="warnbox sm">{{i:alert}} ${esc(t.seguridad)}</div>` : '<span class="muted small">Sin herramienta en mano.</span>';
     if (t) $('#tmf', box).onclick = () => openModal(toolSheet(st.tool));
     drawAction();
   });
@@ -1685,12 +1922,12 @@ function runSim(box, sim, { guided, onDone }) {
 
   // --- HUD ---
   function drawHearts(lost) {
-    $('#hearts', box).innerHTML = Array.from({ length: MAXH }, (_, i) => `<span class="hrt ${i < st.hearts ? 'hfull' : 'hempty'} ${lost && i >= st.hearts && i < st.hearts + lost ? 'hlost' : ''}">${i < st.hearts ? '❤' : '♡'}</span>`).join('');
+    $('#hearts', box).innerHTML = Array.from({ length: MAXH }, (_, i) => `<span class="hrt ${i < st.hearts ? 'hfull' : 'hempty'} ${lost && i >= st.hearts && i < st.hearts + lost ? 'hlost' : ''}">${i < st.hearts ? '{{i:heartf}}' : '{{i:heart}}'}</span>`).join('');
   }
   function drawStepper() {
     const cur = flat[st.idx]?.si ?? sim.steps.length;
     $('#stepper', box).innerHTML = sim.steps.map((s, i) => `<div class="sstep ${i < cur ? 'done' : i === cur ? 'cur' : ''} ${st.stepErr[i] ? 'haserr' : ''}">
-      <span class="sn">${i < cur ? '✓' : i + 1}</span><span class="stt">${esc(s.title)}</span>${st.stepErr[i] ? `<span class="se">${st.stepErr[i]}✘</span>` : ''}</div>`).join('<i class="sline"></i>');
+      <span class="sn">${i < cur ? '✓' : i + 1}</span><span class="stt">${esc(s.title)}</span>${st.stepErr[i] ? `<span class="se">${st.stepErr[i]}{{i:x}}</span>` : ''}</div>`).join('<i class="sline"></i>');
   }
   function stageMsg(kind, html, ms = 1800) {
     const m = $('#smsg', box); if (!m) return;
@@ -1707,7 +1944,7 @@ function runSim(box, sim, { guided, onDone }) {
       <div class="tk-head"><span class="eyebrow">Paso ${a.si + 1} de ${sim.steps.length} · ${esc(stp.title)}</span><span class="tk-sub">Acción ${a.ai + 1}/${stp.actions.length}</span></div>
       <div class="tk-dots">${stp.actions.map((_, i) => `<i class="${i < a.ai ? 'd' : i === a.ai ? 'c' : ''}"></i>`).join('')}</div>
       <p class="tk-text">${esc(text)}</p>
-      ${guided && a.hint ? `<p class="tk-hint">💡 ${esc(a.hint)}</p>` : ''}
+      ${guided && a.hint ? `<p class="tk-hint">{{i:bulb}} ${esc(a.hint)}</p>` : ''}
       <div id="az"></div><div id="afb"></div>`;
     drawAction(); drawTray(); drawStepper();
   }
@@ -1715,8 +1952,8 @@ function runSim(box, sim, { guided, onDone }) {
     const az = $('#az', box); if (!az || st.over) return;
     const a = flat[st.idx];
     if (st.phase === 'act') {
-      if (a.wait) { az.innerHTML = `<button class="btn primary" id="wbtn">⏱ Iniciar espera</button>`; $('#wbtn', box).onclick = () => { st.phase = 'wait'; drawAction(); }; }
-      else if (a.part === 'self') { az.innerHTML = `<button class="btn" id="selfb" ${st.tool ? '' : 'disabled'}>🙋 Usar ${st.tool ? esc(TOOLS[st.tool].short.toLowerCase()) : 'herramienta'} en mí</button>`; const sb = $('#selfb', box); if (sb) sb.onclick = () => onSelf(); }
+      if (a.wait) { az.innerHTML = `<button class="btn primary" id="wbtn">{{i:clock}} Iniciar espera</button>`; $('#wbtn', box).onclick = () => { st.phase = 'wait'; drawAction(); }; }
+      else if (a.part === 'self') { az.innerHTML = `<button class="btn" id="selfb" ${st.tool ? '' : 'disabled'}>{{i:user}} Usar ${st.tool ? esc(TOOLS[st.tool].short.toLowerCase()) : 'herramienta'} en mí</button>`; const sb = $('#selfb', box); if (sb) sb.onclick = () => onSelf(); }
       else az.innerHTML = `<p class="small muted">${st.tool ? `Tienes ${TOOLS[st.tool].icon} en la mano: toca la pieza en el modelo.` : 'Toma una herramienta de la caja.'}</p>`;
     }
     if (st.phase === 'choice') {
@@ -1790,17 +2027,17 @@ function runSim(box, sim, { guided, onDone }) {
     if (k && k !== 'self') scene.flash(k, '#ef4444', 1100);
     stage.classList.remove('err'); void stage.offsetWidth; stage.classList.add('err');
     if (safety) { stage.classList.add('shake'); setTimeout(() => stage.classList.remove('shake'), 600); }
-    stageMsg(safety ? 'bad crit' : 'bad', `${safety ? '⚠ VIOLACIÓN DE SEGURIDAD' : '✘ Error'}${k && k !== 'self' ? ` · ${esc(pname(k))}` : ''}`, 1600);
-    $('#afb', box).innerHTML = `<div class="fb ${safety ? 'critical' : 'bad'}">${safety ? '⚠ <b>Seguridad:</b> ' : '✘ '}${esc(msg)} <span class="lifel">−${lost} ❤</span></div>`;
+    stageMsg(safety ? 'bad crit' : 'bad', `${safety ? '{{i:alert}} VIOLACIÓN DE SEGURIDAD' : '{{i:x}} Error'}${k && k !== 'self' ? ` · ${esc(pname(k))}` : ''}`, 1600);
+    $('#afb', box).innerHTML = `<div class="fb ${safety ? 'critical' : 'bad'}">${safety ? '{{i:alert}} <b>Seguridad:</b> ' : '{{i:x}} '}${esc(msg)} <span class="lifel">−${lost} {{i:heartf}}</span></div>`;
     drawHearts(lost); drawStepper();
     if (st.hearts <= 0) gameOver();
   }
   function success(k) {
     const a = flat[st.idx];
-    if (k !== 'self') { scene.flash(k, '#22c55e', 700); scene.fx(k, TOOLS[a.tool].icon); }
+    if (k !== 'self') { scene.flash(k, '#22c55e', 700); scene.fx(k, '✓'); }
     if (a.ppe) st.ppe = true;
     if (a.choice) { st.phase = 'choice'; $('#afb', box).innerHTML = ''; drawAction(); drawTray(); return; }
-    if (a.input) { st.phase = 'input'; $('#afb', box).innerHTML = `<div class="fb ok">✔ Herramienta y pieza correctas. Ahora el valor.</div>`; drawAction(); drawTray(); return; }
+    if (a.input) { st.phase = 'input'; $('#afb', box).innerHTML = `<div class="fb ok">{{i:check}} Herramienta y pieza correctas. Ahora el valor.</div>`; drawAction(); drawTray(); return; }
     complete();
   }
   function complete() {
@@ -1811,8 +2048,8 @@ function runSim(box, sim, { guided, onDone }) {
       const r = $('#reading', box); r.hidden = false; r.className = 'reading ' + a.reading.status;
       r.innerHTML = `<small>${a.tool ? `${TOOLS[a.tool].icon} ${esc(TOOLS[a.tool].name)}` : 'Lectura'}</small><b>${esc(a.reading.text)}</b>`;
     }
-    stageMsg('ok', '✔ ¡Bien!', 900);
-    $('#afb', box).innerHTML = `<div class="fb ok">✔ ${esc(a.reading ? a.reading.text : 'Correcto.')}</div>`;
+    stageMsg('ok', '{{i:check}} ¡Bien!', 900);
+    $('#afb', box).innerHTML = `<div class="fb ok">{{i:check}} ${esc(a.reading ? a.reading.text : 'Correcto.')}</div>`;
     st.phase = 'done';
     scene.hint = null; drawTray();
     const t = setTimeout(() => {
@@ -1839,11 +2076,11 @@ function runSim(box, sim, { guided, onDone }) {
     const ov = $('#ovl', box);
     ov.hidden = false;
     ov.innerHTML = `<div class="ovcard ${r.passed ? 'pass' : 'fail'}">
-      <div class="ovicon">${out ? '💔' : r.passed ? '🏆' : '⚠'}</div>
+      <div class="ovicon">${out ? '{{i:heart}}' : r.passed ? '{{i:trophy}}' : '{{i:alert}}'}</div>
       <h2>${out ? 'Te quedaste sin vidas' : r.passed ? '¡Proceso completado!' : r.violations.length ? 'Completado con violación de seguridad' : 'Completado, pero con muchos errores'}</h2>
       <div class="stars">${[1, 2, 3].map(i => `<span class="${i <= stars ? 'on' : ''}">★</span>`).join('')}</div>
       <div class="ovscore"><b>${r.score}</b><span>/100</span></div>
-      <div class="ovstats"><div><span>Tiempo</span><b>${Math.floor(r.secs / 60)}:${String(r.secs % 60).padStart(2, '0')}</b></div><div><span>Errores</span><b>${r.errors.length}</b></div><div><span>Seguridad</span><b class="${r.violations.length ? 'bad' : ''}">${r.violations.length}</b></div><div><span>Vidas</span><b>${r.hearts}❤</b></div></div>
+      <div class="ovstats"><div><span>Tiempo</span><b>${Math.floor(r.secs / 60)}:${String(r.secs % 60).padStart(2, '0')}</b></div><div><span>Errores</span><b>${r.errors.length}</b></div><div><span>Seguridad</span><b class="${r.violations.length ? 'bad' : ''}">${r.violations.length}</b></div><div><span>Vidas</span><b>${r.hearts}{{i:heartf}}</b></div></div>
       ${r.errors.length ? `<div class="ovtags">${[...new Set(r.errors)].map(t => `<span class="tag ${r.violations.includes(t) ? 'bad' : ''}">${esc(ERROR_LABELS[t] || t)}</span>`).join('')}</div>` : ''}
       <div class="row center-row"><button class="btn ghost" id="retry">↻ Repetir</button>${r.passed || !out ? `<button class="btn primary" id="nextb">${esc(nxt.label || 'Continuar')}</button>` : ''}</div>
     </div>`;
@@ -1872,7 +2109,7 @@ function viewSenala(el, id) {
       <div class="modgrid">${SENALA.map(p => {
         const last = (S.procs || []).filter(x => x.id === 'senala-' + p.id).slice(-1)[0];
         return `<a class="card modcard" href="#/senala/${p.id}">
-          <div class="mc-top"><span class="modcode">SEÑALA LA PIEZA</span><span class="chip">⏱ ${p.min} min</span></div>
+          <div class="mc-top"><span class="modcode">SEÑALA LA PIEZA</span><span class="chip">{{i:clock}} ${p.min} min</span></div>
           <h3>${p.icon} ${esc(p.title)}</h3><p class="muted small">${esc(p.subtitle)} · ${p.steps.length} pasos</p>
           <p class="small">${esc(p.intro.split('. ')[0])}.</p>
           ${last ? `<p class="small">Último resultado: <b>${last.score}</b>/100</p>` : '<span class="chip orange">Nuevo</span>'}
@@ -1887,11 +2124,11 @@ function runSenala(el, pr) {
   const N = pr.steps.length;
   el.innerHTML = `
     <div class="modhead card">
-      <button class="backbtn" onclick="go('senala')" aria-label="Volver">←</button>
+      <button class="backbtn" onclick="go(currentModel() ? 'practicar' : 'senala')" aria-label="Volver">←</button>
       <div><span class="modcode">SEÑALA LA PIEZA · ${N} PASOS</span><h1>${pr.icon} ${esc(pr.title)}</h1><small class="muted">${esc(pr.subtitle)}</small></div>
     </div>
     <div class="idwrap">
-      <div class="id-top"><span class="chip" id="idStep">Paso 1 de ${N}</span><div class="progress"><i id="idProg" style="width:0%"></i></div><span class="chip orange" id="idPts">⭐ 0</span></div>
+      <div class="id-top"><span class="chip" id="idStep">Paso 1 de ${N}</span><div class="progress"><i id="idProg" style="width:0%"></i></div></div>
       <div class="id-prompt" id="idPrompt"></div>
       <div class="id-body">
       <aside class="tl" id="tl" aria-label="Línea del tiempo del proceso">
@@ -1905,7 +2142,7 @@ function runSenala(el, pr) {
         <canvas id="scv"></canvas>
         <div class="reading" id="reading" hidden></div>
         <div class="stage-msg" id="smsg" hidden></div>
-        <div class="vtools"><button class="vt" data-a="in" title="Acercar">＋</button><button class="vt" data-a="out" title="Alejar">－</button><button class="vt" data-a="reset" title="Vista inicial">⟲</button><button class="vt" data-a="full" title="Pantalla completa">⛶</button></div>
+        <div class="vtools"><button class="vt" data-a="in" title="Acercar">＋</button><button class="vt" data-a="out" title="Alejar">－</button><button class="vt" data-a="reset" title="Vista inicial">⟲</button><button class="vt" data-a="full" title="Pantalla completa">{{i:expand}}</button></div>
         <div class="stage-hint">Arrastra para girar · pellizca para acercar</div>
         <div class="overlay" id="ovl" hidden></div>
       </div>
@@ -1920,6 +2157,7 @@ function runSenala(el, pr) {
   (sc.initial || []).forEach(x => scene.setPart(x.id, { ...x, instant: true }));
   cleanup.push(() => scene.destroy());
   const stage = $('#stage');
+  attachHandControl(stage, scene);
   $$('.vt', stage).forEach(b => b.onclick = () => {
     const a = b.dataset.a;
     if (a === 'in') scene.zoom(0.85);
@@ -1983,7 +2221,6 @@ function runSenala(el, pr) {
     const s = pr.steps[st.i];
     $('#idStep').textContent = `Paso ${st.i + 1} de ${N}`;
     $('#idProg').style.width = (st.i / N * 100) + '%';
-    $('#idPts').textContent = `⭐ ${st.pts}`;
     $('#idPrompt').innerHTML = `
       <span class="id-num">${st.i + 1}</span>
       <div class="id-say"><b>${esc(s.say)}</b>
@@ -1998,15 +2235,15 @@ function runSenala(el, pr) {
     if (st.revealed) { msg('info', `Eso es: <b>${esc(nm(k))}</b>. Toca la pieza marcada en naranja.`); return; }
     st.att++;
     st.errors.push('identificacion-incorrecta');
-    scene.flash(k, '#ef4444', 1100); scene.fx(k, '❌');
+    scene.flash(k, '#ef4444', 1100); scene.fx(k, '✕');
     stage.classList.remove('err'); void stage.offsetWidth; stage.classList.add('err');
-    msg('bad', `✘ Eso es: ${esc(nm(k))}`);
+    msg('bad', `{{i:x}} Eso es: ${esc(nm(k))}`);
     if (st.att >= 3) {
       st.revealed = true;
       scene.hint = s.target; scene.labels = { ...scene.labels, [s.target]: nm(s.target) };
-      $('#idFb').innerHTML = `<div class="fb reveal">👀 <b>Esta es la pieza: ${esc(nm(s.target))}.</b> Te la marcamos en naranja. Tócala para continuar.<br><small>${esc(s.hint)}</small></div>`;
+      $('#idFb').innerHTML = `<div class="fb reveal">{{i:eye}} <b>Esta es la pieza: ${esc(nm(s.target))}.</b> Te la marcamos en naranja. Tócala para continuar.<br><small>${esc(s.hint)}</small></div>`;
     } else {
-      $('#idFb').innerHTML = `<div class="fb bad">✘ Tocaste <b>${esc(nm(k))}</b>. Esa no es. ${st.att === 2 ? `<br>💡 <b>Pista:</b> ${esc(s.hint)}` : 'Intenta de nuevo.'}</div>`;
+      $('#idFb').innerHTML = `<div class="fb bad">{{i:x}} Tocaste <b>${esc(nm(k))}</b>. Esa no es. ${st.att === 2 ? `<br>{{i:bulb}} <b>Pista:</b> ${esc(s.hint)}` : 'Intenta de nuevo.'}</div>`;
     }
     drawPrompt();
   }
@@ -2018,17 +2255,17 @@ function runSenala(el, pr) {
     scene.hint = null;
     scene.flash(s.target, '#22c55e', 900);
     scene.labels = { ...scene.labels, [s.target]: nm(s.target) };
-    msg('ok', st.revealed ? `Ahí está: ${esc(nm(s.target))}` : `✔ ¡Correcto! +${got} ⭐`);
+    msg('ok', st.revealed ? `Ahí está: ${esc(nm(s.target))}` : '{{i:check}} ¡Correcto!');
     if (s.question) { st.phase = 'question'; return drawQuestion(); }
     learn();
   }
   function drawQuestion() {
     const q = pr.steps[st.i].question;
-    $('#idFb').innerHTML = `<div class="fb ok">✔ <b>${esc(nm(pr.steps[st.i].target))}</b>. Antes de seguir:</div>
+    $('#idFb').innerHTML = `<div class="fb ok">{{i:check}} <b>${esc(nm(pr.steps[st.i].target))}</b>. Antes de seguir:</div>
       <div class="card idq"><p><b>${esc(q.q)}</b></p><div class="opts">${shuffle(q.o.map((_, k) => k)).map(k => `<button class="opt" data-k="${k}">${esc(q.o[k])}</button>`).join('')}</div></div>`;
     $$('.idq .opt').forEach(b => b.onclick = () => {
       if (+b.dataset.k === q.a) { learn(q.fb); }
-      else { b.classList.add('wrong'); b.disabled = true; st.errors.push('proc-respuesta-incorrecta'); msg('bad', '✘ Respuesta incorrecta'); }
+      else { b.classList.add('wrong'); b.disabled = true; st.errors.push('proc-respuesta-incorrecta'); msg('bad', '{{i:x}} Respuesta incorrecta'); }
     });
   }
   function learn(extra) {
@@ -2038,8 +2275,8 @@ function runSenala(el, pr) {
     if (s.reading) { const r = $('#reading'); r.hidden = false; r.className = 'reading ' + s.reading.status; r.innerHTML = `<small>Resultado</small><b>${esc(s.reading.text)}</b>`; }
     const last = st.i === N - 1;
     $('#idFb').innerHTML = `<div class="learncard">
-      <div class="lc-head">✔ ${esc(nm(s.target))}</div>
-      <p>${esc(s.learn)}</p>${extra ? `<p class="small">💡 ${esc(extra)}</p>` : ''}
+      <div class="lc-head">{{i:check}} ${esc(nm(s.target))}</div>
+      <p>${esc(s.learn)}</p>${extra ? `<p class="small">{{i:bulb}} ${esc(extra)}</p>` : ''}
       <button class="btn primary" id="idNext">${last ? 'Ver resultado' : 'Siguiente paso →'}</button></div>`;
     $('#idNext').onclick = () => {
       if (last) return finish();
@@ -2067,13 +2304,13 @@ function runSenala(el, pr) {
     save();
     const ov = $('#ovl'); ov.hidden = false;
     ov.innerHTML = `<div class="ovcard ${passed ? 'pass' : 'fail'}">
-      <div class="ovicon">${passed ? '🏆' : '📚'}</div>
+      <div class="ovicon">${passed ? '{{i:trophy}}' : '{{i:book}}'}</div>
       <h2>${passed ? '¡Proceso completado!' : 'Proceso completado: sigue practicando'}</h2>
       <div class="stars">${[1, 2, 3].map(k => `<span class="${k <= stars ? 'on' : ''}">★</span>`).join('')}</div>
       <div class="ovscore"><b>${score}</b><span>/100</span></div>
       <div class="ovstats"><div><span>1er intento</span><b>${first}/${N}</b></div><div><span>Errores</span><b>${st.errors.length}</b></div><div><span>Mostradas</span><b>${shown.length}</b></div><div><span>Tiempo</span><b>${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}</b></div></div>
       ${shown.length ? `<p class="small"><b>Repasa:</b> ${shown.map(s => esc(nm(s.target))).join(', ')}</p>` : ''}
-      <div class="row center-row"><button class="btn ghost" id="again">↻ Repetir</button><button class="btn primary" onclick="go('practicar')">Otras prácticas</button></div>
+      <div class="row center-row"><button class="btn ghost" id="again">↻ Repetir</button><button class="btn primary" onclick="go('practicar')">Volver a los módulos</button></div>
     </div>`;
     $('#again').onclick = () => render();
   }
@@ -2083,7 +2320,7 @@ function runSenala(el, pr) {
   // pantalla de inicio
   const ov = $('#ovl'); ov.hidden = false;
   ov.innerHTML = `<div class="ovcard intro"><div class="ovicon">${pr.icon}</div><h2>${esc(pr.title)}</h2><p>${esc(pr.intro)}</p>
-    <ul class="rules"><li>👆 Toca la pieza en el modelo (gíralo para buscarla).</li><li>❌ Cada error se marca en rojo y te dice qué tocaste.</li><li>👀 Al tercer error, el modelo te muestra la pieza.</li></ul>
+    <ul class="rules"><li>{{i:pointer}} Toca la pieza en el modelo (gíralo para buscarla).</li><li>{{i:x}} Cada error se marca en rojo y te dice qué tocaste.</li><li>{{i:eye}} Al tercer error, el modelo te muestra la pieza.</li></ul>
     <button class="btn primary" id="idStart">Comenzar</button></div>`;
   $('#idStart').onclick = () => { ov.hidden = true; st.phase = 'pick'; st.start = Date.now(); drawPrompt(); };
   drawPrompt();
@@ -2092,25 +2329,457 @@ function runSenala(el, pr) {
 /* =========================================================
    PRACTICAR — punto de entrada a todas las prácticas
    ========================================================= */
-function viewPracticar(el) {
-  const doneS = SENALA.filter(p => (S.procs || []).some(x => x.id === 'senala-' + p.id)).length;
-  const doneA = SIMS.filter(s => simProg(s.id).hacer != null).length;
-  const doneT = PROCEDURES.filter(p => (S.procs || []).some(x => x.id === p.id)).length;
-  const doneF = new Set(S.practice.map(p => p.id)).size;
-  const items = [
-    ['senala', '👆', 'Señala la pieza', 'Reconoce cada pieza y herramienta del proceso. Ideal para empezar.', `${doneS}/${SENALA.length} procesos`, true],
-    ['aprende', '⭐', 'Aprende haciendo', 'Saber → Hacer → Demostrar: repara paso a paso con vidas y cronómetro.', `${doneA}/${SIMS.length} módulos`],
-    ['taller', '🔧', 'Taller virtual', 'Procedimientos con caja de herramientas, torques y lecturas.', `${doneT}/${PROCEDURES.length} procedimientos`],
-    ['practica', '🛠️', 'Simulador de fallas', 'Toma decisiones de diagnóstico ante una falla real.', `${doneF}/${SCENARIOS.length} escenarios`],
-    ['inspeccion', '🚌', 'Modelo 3D del autobús', 'Explora el autobús eléctrico y diésel con fichas de cada pieza.', 'Libre'],
-  ];
+/* =========================================================
+   PRACTICAR — garage de modelos (tipo videojuego) → módulos
+   (grupos de función) → prácticas del módulo
+   ========================================================= */
+const currentModel = () => BUS_MODELS.find(m => m.id === S.bus) || null;
+const powerMatch = (power, model) => power === 'all' || (power === 'ev' && model.power !== 'diesel') || (power === 'combustion' && model.power !== 'electrico');
+function practicesFor(model, group) {
+  return PRACTICE_CATALOG.filter(p => p.group === group && powerMatch(p.power, model)).map(p => {
+    let title = '', min = 5, route = '', done = false, pct = 0, locked = false, steps = '';
+    if (p.type === 'senala') { const x = SENALA.find(z => z.id === p.id); title = x.title; min = x.min; route = 'senala/' + x.id; steps = `${x.steps.length} pasos`; done = (S.procs || []).some(r => r.id === 'senala-' + x.id); }
+    if (p.type === 'aprende') { const x = SIMS.find(z => z.id === p.id); title = x.title; min = x.min; route = 'aprende/' + x.id; steps = `${x.steps.length} pasos`; pct = simPct(simProg(x.id)); done = pct === 100; }
+    if (p.type === 'taller') { const x = PROCEDURES.find(z => z.id === p.id); title = x.title; min = x.min; route = 'taller/' + x.id; steps = `${x.steps.length} tareas`; done = (S.procs || []).some(r => r.id === x.id && r.passed); locked = procLocked(x); }
+    if (p.type === 'fallas') { const x = SCENARIOS.find(z => z.id === p.id); title = x.title; min = x.min; route = 'practica/' + x.id; steps = `${Object.keys(x.nodes).length} decisiones`; done = S.practice.some(r => r.id === x.id && r.passed); locked = scenarioLocked(x); }
+    return { ...p, title, min, route, done, pct: done ? 100 : pct, locked, steps };
+  }).sort((a, b) => PRACTICE_TYPES[a.type].order - PRACTICE_TYPES[b.type].order);
+}
+const busThumbs = {};
+function busThumb(model) {
+  if (busThumbs[model.id]) return busThumbs[model.id];
+  try {
+    const c = document.createElement('canvas'); c.width = 420; c.height = 230;
+    const v = E3D.buildModel(model);
+    const sc = new E3D.Scene(c, { manual: true, body: v.body, shadowRect: v.shadow, dist: v.dist * 0.92, yaw: 0.78, pitch: 0.26, target: [0, 1.55, 0] });
+    sc.setMeshes(v.meshes);
+    busThumbs[model.id] = sc.snapshot();
+  } catch (e) { busThumbs[model.id] = ''; }
+  return busThumbs[model.id];
+}
+function applyModelToScene(scene, model, mode) {
+  const v = E3D.buildModel(model, mode);
+  scene.setMeshes(v.meshes); scene.body = v.body; scene.shadowRect = v.shadow; scene.dist = v.dist; scene.target = [0, 1.6, 0];
+  return v;
+}
+
+function viewPracticar(el, param) {
+  if (param === 'elegir' || !currentModel()) return viewGarage(el);
+  if (param && /^m\d$/.test(param)) return viewModule(el, +param.slice(1));
+  viewModules(el);
+}
+
+function viewGarage(el) {
+  let idx = Math.max(0, BUS_MODELS.findIndex(m => m.id === S.bus));
+  const maxP = Math.max(...BUS_MODELS.map(m => FUNCTION_GROUPS.filter(g => g.available).reduce((s, g) => s + practicesFor(m, g.n).length, 0)));
   el.innerHTML = `
-    <div class="page-head"><div><span class="eyebrow">Módulo práctico</span><h1>Practicar</h1>
-      <p class="muted">Recomendado: empieza por <b>Señala la pieza</b>, sigue con <b>Aprende haciendo</b> y demuestra en el <b>Taller</b> y el <b>Simulador de fallas</b>.</p></div></div>
-    <div class="hubgrid">${items.map(([r, ic, t, d, p, isNew], k) => `
-      <a class="card hubcard ${k === 0 ? 'feat' : ''}" href="#/${r}">
-        <span class="hubicon">${ic}</span>
-        <div><b>${t} ${isNew ? '<span class="chip orange">Nuevo</span>' : ''}</b><p>${d}</p><small>${p}</small></div>
-        <span class="hubgo">→</span>
-      </a>`).join('')}</div>`;
+    <div class="garage">
+      <div class="g-head"><span class="eyebrow">Paso 1 de 2 · Garage</span><h1>Elige tu autobús</h1>
+        <p class="muted">Cada modelo tiene sus propios módulos de práctica. Usa las flechas, el teclado (← →) o toca una miniatura.</p></div>
+      <div class="g-main">
+        <div class="g-stage" id="gStage">
+          <canvas id="gcv"></canvas>
+          <button class="g-arrow l" id="gPrev" aria-label="Modelo anterior">‹</button>
+          <button class="g-arrow r" id="gNext" aria-label="Modelo siguiente">›</button>
+          <div class="g-count" id="gCount"></div>
+          <div class="g-dots" id="gDots"></div>
+        </div>
+        <div class="g-info" id="gInfo"></div>
+      </div>
+      <div class="g-thumbs" id="gThumbs"></div>
+      <p class="g-note">Modelos de referencia para el prototipo: formas y datos simplificados.</p>
+    </div>`;
+  const scene = new E3D.Scene($('#gcv'), { autoRotate: true, xray: false, pitch: 0.3, yaw: 0.8 });
+  cleanup.push(() => scene.destroy());
+  const show = (i, dir = 0) => {
+    idx = (i + BUS_MODELS.length) % BUS_MODELS.length;
+    const m = BUS_MODELS[idx];
+    applyModelToScene(scene, m);
+    scene.yaw = 0.8; scene.autoRotate = true;
+    const groups = FUNCTION_GROUPS.filter(g => g.available);
+    const nP = groups.reduce((s, g) => s + practicesFor(m, g.n).length, 0);
+    const hv = m.power === 'electrico' ? 100 : m.power === 'hibrido' ? 60 : 0;
+    const stat = (label, pct, val) => `<div class="g-stat"><span>${label}</span><div class="g-bar"><i style="width:${pct}%"></i></div><b>${val}</b></div>`;
+    const info = $('#gInfo');
+    info.innerHTML = `
+      <div class="g-chips"><span class="chip">${esc(m.tipo)}</span><span class="chip ${m.power === 'diesel' ? 'orange' : 'blue'}">${POWER_LABEL[m.power]}</span></div>
+      <h2>${esc(m.name)}</h2>
+      <p>${esc(m.desc)}</p>
+      <div class="g-stats">
+        ${stat('Longitud', round(m.len / 18 * 100), `≈ ${m.len} m`)}
+        ${stat('Alto voltaje', hv, hv === 100 ? 'Alto' : hv ? 'Medio' : 'No aplica')}
+        ${stat('Prácticas', round(nP / maxP * 100), `${nP}`)}
+        ${stat('Módulos', round(groups.length / FUNCTION_GROUPS.length * 100), `${groups.length} de ${FUNCTION_GROUPS.length}`)}
+      </div>
+      <button class="btn primary g-select" id="gSelect">▶ Seleccionar este autobús</button>
+      ${S.bus === m.id ? '<p class="small muted g-current">✓ Es tu autobús actual</p>' : ''}`;
+    info.classList.remove('slide-l', 'slide-r'); void info.offsetWidth; if (dir) info.classList.add(dir > 0 ? 'slide-r' : 'slide-l');
+    $('#gSelect').onclick = () => { S.bus = m.id; log('práctica', `Eligió el autobús ${m.name}`); save(); toast(`{{i:bus}} ${m.name} seleccionado`); go('practicar'); };
+    $('#gCount').textContent = `${idx + 1} / ${BUS_MODELS.length}`;
+    $('#gDots').innerHTML = BUS_MODELS.map((_, k) => `<i class="${k === idx ? 'on' : ''}"></i>`).join('');
+    $$('#gThumbs .g-thumb').forEach((t, k) => t.classList.toggle('on', k === idx));
+    const on = $('#gThumbs .g-thumb.on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+  };
+  $('#gThumbs').innerHTML = BUS_MODELS.map((m, k) => `<button class="g-thumb" data-k="${k}"><span class="g-img">${busThumb(m) ? `<img src="${busThumb(m)}" alt="">` : '{{i:bus}}'}</span><b>${esc(m.name.replace('Volvo ', ''))}</b><small>${esc(m.tipo)} · ${POWER_LABEL[m.power]}</small>${S.bus === m.id ? '<em>Actual</em>' : ''}</button>`).join('');
+  $$('#gThumbs .g-thumb').forEach(t => t.onclick = () => show(+t.dataset.k, +t.dataset.k > idx ? 1 : -1));
+  $('#gPrev').onclick = () => show(idx - 1, -1);
+  $('#gNext').onclick = () => show(idx + 1, 1);
+  const onKey = e => { if (e.key === 'ArrowLeft') show(idx - 1, -1); if (e.key === 'ArrowRight') show(idx + 1, 1); if (e.key === 'Enter' && document.activeElement === document.body) $('#gSelect').click(); };
+  document.addEventListener('keydown', onKey);
+  cleanup.push(() => document.removeEventListener('keydown', onKey));
+  show(idx);
+}
+
+function busBar(model, extra = '') {
+  return `<div class="busbar card">
+    <span class="bb-img">${busThumb(model) ? `<img src="${busThumb(model)}" alt="">` : '{{i:bus}}'}</span>
+    <div><span class="eyebrow">Tu autobús</span><b>${esc(model.name)}</b><small>${esc(model.tipo)} · ${POWER_LABEL[model.power]}</small></div>
+    ${extra}<button class="btn ghost" onclick="go('practicar/elegir')">{{i:refresh}} Cambiar autobús</button></div>`;
+}
+
+// práctica principal de cada módulo: el botón del módulo lleva directo a ella
+function primaryPractice(model, n) {
+  if (n === 2) return { route: 'senala/bujias', title: 'Cambio de bujía', type: 'senala' };
+  if (n === 3) return { route: 'senala/bateria24', title: 'Reemplazo de batería', type: 'senala' };
+  return null;
+}
+function viewModules(el) {
+  const m = currentModel();
+  const avail = FUNCTION_GROUPS.filter(g => g.available);
+  el.innerHTML = `
+    ${busBar(m)}
+    <div class="page-head"><div><span class="eyebrow">Paso 2 de 2 · Módulos</span><h1>Elige un módulo</h1>
+      <p class="muted">Organizados por grupo de función, como en la información de servicio. Por ahora están disponibles ${avail.map(g => `<b>${g.n} · ${esc(g.name)}</b>`).join(' y ')}; el resto se habilitará al escalar la plataforma.</p></div></div>
+    <div class="fgrid">${FUNCTION_GROUPS.map(g => {
+      const list = g.available ? practicesFor(m, g.n) : [];
+      const done = list.filter(p => p.done).length;
+      const sub = typeof g.sub === 'string' ? g.sub : g.sub[m.power];
+      return `<button class="fcard ${g.available ? '' : 'locked'}" data-g="${g.n}" ${g.available ? '' : 'aria-disabled="true"'}>
+        <span class="fnum">${g.n}</span>
+        <span class="ficon">${g.icon}</span>
+        <b>${esc(g.name)}</b><small>${esc(sub)}</small>
+        ${g.available ? `<span class="fmain">${PRACTICE_TYPES[primaryPractice(m, g.n).type].icon} ${esc(primaryPractice(m, g.n).title)}</span>
+          <div class="fprog"><div class="bar"><i style="width:${list.length ? round(done / list.length * 100) : 0}%"></i></div><span>${done}/${list.length} prácticas</span></div>
+          <span class="frow"><span class="fgo">▶ Practicar</span><a class="fmore" href="#/practicar/m${g.n}">Otras prácticas (${Math.max(0, list.length - 1)})</a></span>`
+          : '<span class="flock">{{i:lock}} Próximamente</span>'}
+      </button>`; }).join('')}</div>`;
+  $$('.fcard', el).forEach(b => b.onclick = () => {
+    const g = FUNCTION_GROUPS.find(x => x.n === +b.dataset.g);
+    if (!g.available) { b.classList.remove('nope'); void b.offsetWidth; b.classList.add('nope'); toast(`{{i:lock}} «${g.name}» estará disponible cuando se escale la plataforma`); return; }
+    go(primaryPractice(m, g.n).route);
+  });
+  $$('.fmore', el).forEach(a => a.onclick = e => e.stopPropagation());
+}
+
+function viewModule(el, n) {
+  const m = currentModel(), g = FUNCTION_GROUPS.find(x => x.n === n);
+  if (!g || !g.available) return go('practicar');
+  const list = practicesFor(m, n);
+  const done = list.filter(p => p.done).length;
+  const next = list.find(p => !p.done && !p.locked);
+  const sub = typeof g.sub === 'string' ? g.sub : g.sub[m.power];
+  el.innerHTML = `
+    ${busBar(m)}
+    <div class="modhead card">
+      <button class="backbtn" onclick="go('practicar')" aria-label="Volver a los módulos">←</button>
+      <span class="fnum big">${g.n}</span>
+      <div><span class="modcode">GRUPO DE FUNCIÓN ${g.n} · ${esc(m.name.toUpperCase())}</span><h1>${g.icon} ${esc(g.name)}</h1><small class="muted">${esc(sub)}</small></div>
+    </div>
+    <div class="modprog big"><div class="bar"><i style="width:${list.length ? round(done / list.length * 100) : 0}%"></i></div><b>${done}/${list.length}</b></div>
+    ${next ? `<div class="banner next-prac" onclick="go('${next.route}')">▶ <b>Siguiente recomendado:</b> ${PRACTICE_TYPES[next.type].icon} ${esc(next.title)} <span class="muted">· ${esc(PRACTICE_TYPES[next.type].name)}</span></div>` : ''}
+    <div class="plist">${list.map(p => `
+      <a class="card pcard ${p.locked ? 'locked' : ''} ${p.done ? 'done' : ''}" href="#/${p.route}">
+        <span class="pc-type">${PRACTICE_TYPES[p.type].icon}</span>
+        <div class="pc-main">
+          <span class="eyebrow">${esc(PRACTICE_TYPES[p.type].name)}</span>
+          <b>${esc(p.title)}</b>
+          <small>${p.steps} · {{i:clock}} ${p.min} min${p.note ? ` · ${esc(p.note)}` : ''}</small>
+          ${!p.done && p.pct ? `<div class="modprog"><div class="bar"><i style="width:${p.pct}%"></i></div><b>${p.pct}%</b></div>` : ''}
+        </div>
+        <span class="pc-status">${p.locked ? '{{i:lock}} Requisito' : p.done ? '✓ Completado' : 'Empezar →'}</span>
+      </a>`).join('') || '<p class="muted">No hay prácticas de este módulo para este tipo de autobús.</p>'}</div>
+    <div class="row"><button class="btn ghost" onclick="go('inspeccion')">{{i:bus}} Explorar el ${esc(m.name)} en 3D</button></div>`;
+}
+
+/* =========================================================
+   CONTROL CON LA MANO (cámara)
+   Principal: reconocimiento real de manos con MediaPipe (js/hand-tracking.js):
+   apuntar con el índice, pinza para tocar piezas, pinza sostenida para girar.
+   Respaldo (sin cámara segura/WASM): realidad aumentada en el celular o la
+   detección de movimiento simple en escritorio. El control táctil siempre sigue activo.
+   ========================================================= */
+function attachHandControl(stage, scene) {
+  if (!$('.vtools', stage)) return;
+  const phone = isPhone();
+  if (window.HandGestures && HandGestures.supported()) {
+    const hand = HandGestures.attach(stage, scene, { mobile: phone });
+    if (hand) {
+      cleanup.push(hand);
+      // en el celular también queda la realidad aumentada, con su propio botón "Mano" adentro
+      if (phone) attachAR(stage, scene, hand);
+      return;
+    }
+  }
+  attachMotionControl(stage, scene);
+}
+
+/* Respaldo: detección de movimiento simple. Compara cada cuadro con el anterior a baja
+   resolución, calcula el centro del movimiento y gira el modelo según cómo se desplaza. */
+function attachMotionControl(stage, scene) {
+  const tools = $('.vtools', stage);
+  if (!tools) return;
+  if (isPhone()) return attachAR(stage, scene);          // en el celular: cámara trasera + realidad aumentada
+  const btn = document.createElement('button');
+  btn.className = 'vt'; btn.type = 'button'; btn.title = 'Mover el modelo con la mano (cámara)'; btn.innerHTML = '{{i:camera}}';
+  tools.prepend(btn);
+  const pip = document.createElement('div');
+  pip.className = 'handcam'; pip.hidden = true;
+  pip.innerHTML = '<video playsinline muted></video><i class="hdot"></i><span class="hlabel">Mueve la mano frente a la cámara</span><button type="button" class="hclose" aria-label="Apagar cámara">✕</button>';
+  stage.appendChild(pip);
+  const video = $('video', pip), dot = $('.hdot', pip), label = $('.hlabel', pip);
+  const W = 48, H = 36, work = document.createElement('canvas');
+  work.width = W; work.height = H;
+  const wctx = work.getContext('2d', { willReadFrequently: true });
+  let stream = null, raf = 0, vfc = 0, prev = null, hist = null;
+  // estado del seguimiento: mano filtrada, ancla al reaparecer, objetivo y resorte de rotación
+  let hand = null, anchor = null, base = null, target = null, lost = 99, lastSample = 0;
+  const spring = { vy: 0, vp: 0 };
+
+  /* Filtro One Euro: suaviza mucho con movimientos lentos y casi no retrasa los rápidos */
+  const oneEuro = (minCutoff = 1.2, beta = 0.9, dCutoff = 1.0) => {
+    let x = null, dx = 0;
+    const alpha = (cut, dt) => 1 / (1 + 1 / (2 * Math.PI * cut * dt));
+    return {
+      reset() { x = null; dx = 0; },
+      filter(v, dt) {
+        if (x === null) { x = v; return v; }
+        const ad = alpha(dCutoff, dt); dx = ad * ((v - x) / dt) + (1 - ad) * dx;
+        const a = alpha(minCutoff + beta * Math.abs(dx), dt); x = a * v + (1 - a) * x;
+        return x;
+      },
+    };
+  };
+  const fx = oneEuro(), fy = oneEuro();
+
+  async function start() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast('Este navegador no permite usar la cámara aquí. Abre la app con localhost (python3 -m http.server).'); return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 30 } }, audio: false });
+    } catch (e) {
+      toast(e && e.name === 'NotAllowedError' ? 'Permiso de cámara denegado. Actívalo en el candado de la barra de direcciones.' : 'No se pudo abrir la cámara en esta página.');
+      return;
+    }
+    pip.hidden = false; btn.classList.add('on'); scene.autoRotate = false;
+    video.srcObject = stream;
+    video.play().catch(() => { /* el ciclo espera a que haya imagen */ });
+    prev = hist = null; hand = anchor = base = target = null; lost = 99; spring.vy = spring.vp = 0; fx.reset(); fy.reset();
+    // analizar exactamente una vez por cada cuadro nuevo de la cámara (si el navegador lo permite)
+    if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+      const onFrame = (now) => { if (!stream) return; sample(now); vfc = video.requestVideoFrameCallback(onFrame); };
+      vfc = video.requestVideoFrameCallback(onFrame);
+    }
+    lastT = performance.now();
+    loop(lastT);
+  }
+  function stop() {
+    cancelAnimationFrame(raf);
+    if (vfc && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(vfc);
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null; pip.hidden = true; btn.classList.remove('on'); dot.style.display = 'none';
+  }
+  function analyze() {
+    wctx.drawImage(video, 0, 0, W, H);
+    const px = wctx.getImageData(0, 0, W, H).data;
+    const N = W * H, gray = new Float32Array(N);
+    for (let i = 0; i < N; i++) gray[i] = (px[i * 4] * 3 + px[i * 4 + 1] * 6 + px[i * 4 + 2]) / 10;
+    if (!prev) { prev = gray; hist = new Float32Array(N); return null; }
+    // memoria de movimiento: cada píxel que cambió se "enciende" y se apaga poco a poco;
+    // así se cubre la mano completa y no solo sus bordes, y el centro no brinca
+    let changed = 0, wsum = 0, sx = 0, sy = 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x, d = Math.abs(gray[i] - prev[i]);
+      if (d > 16) { changed++; hist[i] = Math.min(1, hist[i] * 0.6 + (d - 16) / 40); } else hist[i] *= 0.8;
+      const w = hist[i] * hist[i];
+      if (w > 0.02) { wsum += w; sx += x * w; sy += y * w; }
+    }
+    for (let i = 0; i < N; i++) prev[i] = prev[i] * 0.4 + gray[i] * 0.6;
+    if (changed > N * 0.5) { hist.fill(0); return null; }                 // cambio brusco de luz
+    if (wsum < 3) return null;                                             // no hay movimiento suficiente
+    return { x: 1 - (sx / wsum) / (W - 1), y: (sy / wsum) / (H - 1) };    // espejo: como te ves en la cámara
+  }
+  function sample(now) {
+    if (!stream || video.readyState < 2) return;
+    const dt = Math.min(0.1, Math.max(0.008, (now - (lastSample || now - 33)) / 1000));
+    lastSample = now;
+    const c = analyze();
+    if (c) {
+      if (lost > 8 || !hand) {                                            // la mano reaparece: re-anclar sin saltos
+        fx.reset(); fy.reset();
+        hand = { x: fx.filter(c.x, dt), y: fy.filter(c.y, dt) };
+        anchor = { ...hand }; base = { yaw: scene.yaw, pitch: scene.pitch };
+      } else {
+        hand = { x: fx.filter(c.x, dt), y: fy.filter(c.y, dt) };
+      }
+      lost = 0;
+      target = { yaw: base.yaw - (hand.x - anchor.x) * 3.8, pitch: Math.min(1.35, Math.max(-0.15, base.pitch + (hand.y - anchor.y) * 1.9)) };
+      dot.style.display = 'block'; dot.style.transform = `translate(${hand.x * pip.clientWidth}px, ${hand.y * pip.clientHeight}px) translate(-50%, -50%)`;
+      label.textContent = 'Siguiendo tu mano';
+    } else if (++lost > 8) {
+      target = null;                                                       // sin mano: el mouse vuelve a controlar
+      dot.style.display = 'none'; label.textContent = 'Mueve la mano frente a la cámara';
+    }
+  }
+  let lastT = 0;
+  function loop(t) {
+    raf = requestAnimationFrame(loop);
+    if (!stream) return;
+    const dt = Math.min(0.05, Math.max(0.001, (t - lastT) / 1000)); lastT = t;
+    if (!('requestVideoFrameCallback' in HTMLVideoElement.prototype) && t - lastSample >= 33) sample(t);
+    // resorte críticamente amortiguado: llega suave al objetivo, sin rebotes ni tirones
+    if (target) {
+      const w = 9, k = w * w, c = 2 * w;
+      spring.vy += ((target.yaw - scene.yaw) * k - spring.vy * c) * dt;
+      spring.vp += ((target.pitch - scene.pitch) * k - spring.vp * c) * dt;
+      scene.yaw += spring.vy * dt; scene.pitch += spring.vp * dt;
+    } else { spring.vy *= 0.85; spring.vp *= 0.85; scene.yaw += spring.vy * dt; scene.pitch = Math.min(1.35, Math.max(-0.15, scene.pitch + spring.vp * dt)); }
+  }
+  btn.addEventListener('click', () => (stream ? stop() : start()));
+  $('.hclose', pip).onclick = stop;
+  cleanup.push(stop);
+}
+
+/* =========================================================
+   REALIDAD AUMENTADA (celular) — cámara trasera + sensores
+   El video de la cámara trasera queda de fondo y el motor se
+   dibuja encima. Con el giroscopio, el modelo se queda "fijo"
+   en el lugar donde lo pusiste: si mueves el celular a un lado,
+   el motor se desplaza en la pantalla como un objeto real.
+   ========================================================= */
+function isPhone() {
+  if (/[?&]ar=1/.test(location.search)) return true;
+  const coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches;
+  return coarse || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+/* Orientación del teléfono -> ejes de la pantalla en el mundo (x = este, y = norte, z = arriba) */
+function deviceAxes(o) {
+  const r = Math.PI / 180, A = (o.alpha || 0) * r, B = (o.beta || 0) * r, G = (o.gamma || 0) * r;
+  const cA = Math.cos(A), sA = Math.sin(A), cB = Math.cos(B), sB = Math.sin(B), cG = Math.cos(G), sG = Math.sin(G);
+  const right = [cA * cG - sA * sB * sG, sA * cG + cA * sB * sG, -cB * sG];
+  const up = [-sA * cB, cA * cB, sB];
+  const fwd = [-(cA * sG + sA * sB * cG), -(sA * sG - cA * sB * cG), -(cB * cG)];   // hacia donde mira la cámara trasera
+  const a = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * r;
+  const ca = Math.cos(a), sa = Math.sin(a);
+  return {
+    fwd,
+    right: right.map((v, i) => ca * v - sa * up[i]),
+    up: right.map((v, i) => sa * v + ca * up[i]),
+  };
+}
+
+function attachAR(stage, scene, handMode) {
+  const tools = $('.vtools', stage);
+  const btn = document.createElement('button');
+  btn.className = 'vt arbtn'; btn.type = 'button'; btn.title = 'Ver en realidad aumentada (cámara trasera)';
+  btn.innerHTML = '{{i:camera}}<b>AR</b>';
+  tools.prepend(btn);
+  const hud = document.createElement('div');
+  hud.className = 'arhud'; hud.hidden = true;
+  hud.innerHTML = `<div class="arbar"><span class="arlive"><i></i>Realidad aumentada</span>
+      <button type="button" class="arbtn2" data-ar="center">Traer al centro</button>
+      <button type="button" class="arclose" aria-label="Salir de realidad aumentada">✕</button></div>
+    <div class="artip">Apunta a una mesa o al piso. Mueve el celular para mirar alrededor · arrastra para girar el motor · pellizca para cambiar el tamaño.</div>
+    <div class="aredge" hidden><span>›</span></div>`;
+  stage.appendChild(hud);
+  const tip = $('.artip', hud), edge = $('.aredge', hud);
+  // control con la mano DENTRO de la realidad aumentada: usa la misma cámara trasera (no abre otra)
+  const arHand = window.HandGestures && HandGestures.supported()
+    ? HandGestures.attach(stage, scene, { external: { getVideo: () => video, bar: $('.arbar', hud), tip } })
+    : null;
+  if (arHand) cleanup.push(arHand);
+  // solo una cámara a la vez: el modo "Mano" independiente y la realidad aumentada se excluyen
+  if (handMode) handMode.onStart = () => { if (stream) stop(); };
+  let stream = null, video = null, raf = 0, ori = null, gyro = false, anchor = null, tipT = 0;
+  const view = { ox: 0, oy: 0, rot: 0 };
+  const onOri = e => { if (e.alpha == null && e.beta == null) return; ori = { alpha: e.alpha, beta: e.beta, gamma: e.gamma }; gyro = true; };
+
+  async function start() {
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast('Para usar la cámara del celular la página debe abrirse con https (por ejemplo, publicada en GitHub Pages o Netlify).');
+      return;
+    }
+    if (handMode) handMode.stop();    // libera la cámara del modo "Mano" independiente
+    // iPhone: el permiso de sensores debe pedirse justo al tocar el botón
+    let perm = Promise.resolve('granted');
+    try {
+      if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') perm = DeviceOrientationEvent.requestPermission().catch(() => 'denied');
+    } catch (e) { perm = Promise.resolve('denied'); }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    } catch (e) {
+      toast(e && e.name === 'NotAllowedError' ? 'Permiso de cámara denegado. Actívalo en los ajustes del navegador.' : 'No se pudo abrir la cámara trasera.');
+      return;
+    }
+    video = document.createElement('video');
+    video.className = 'arvideo'; video.setAttribute('playsinline', ''); video.muted = true; video.autoplay = true;
+    video.srcObject = stream;
+    stage.prepend(video);
+    video.play().catch(() => {});
+    stage.classList.add('ar-on'); btn.classList.add('on'); hud.hidden = false;
+    scene.noGrid = true; scene.autoRotate = false;
+    anchor = null; ori = null; gyro = false; view.ox = view.oy = view.rot = 0;
+    tip.hidden = false; tip.textContent = 'Apunta a una mesa o al piso. Mueve el celular para mirar alrededor · arrastra para girar el motor · pellizca para cambiar el tamaño.';
+    clearTimeout(tipT); tipT = setTimeout(() => { tip.hidden = true; }, 7000);
+    window.addEventListener('deviceorientation', onOri);              // si no hay permiso simplemente no llegan datos
+    perm.then(() => setTimeout(() => { if (stream && !gyro) { tip.hidden = false; tip.textContent = 'Este celular no compartió sus sensores de movimiento: arrastra para girar el motor y pellizca para cambiar el tamaño.'; } }, 1500));
+    loop();
+  }
+  function stop() {
+    if (arHand) arHand.stop();         // la mano dentro de AR usa este video: se detiene primero
+    cancelAnimationFrame(raf); clearTimeout(tipT);
+    window.removeEventListener('deviceorientation', onOri);
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null;
+    if (video) { video.remove(); video = null; }
+    stage.classList.remove('ar-on'); btn.classList.remove('on'); hud.hidden = true; edge.hidden = true;
+    scene.noGrid = false; scene.view = null;
+  }
+  // ángulo más corto entre dos giros (evita que dé la vuelta completa)
+  const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+  function loop() {
+    raf = requestAnimationFrame(loop);
+    if (!stream) return;
+    if (!gyro || !ori) { scene.view = null; return; }         // sin sensores: la cámara queda de fondo y se gira con el dedo
+    const ax = deviceAxes(ori);
+    if (!anchor) anchor = ax.fwd.slice();                         // el motor aparece donde apuntas al empezar
+    const dotp = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    const w = stage.clientWidth, h = stage.clientHeight;
+    const F = 0.5 * Math.hypot(w, h) / Math.tan(37 * Math.PI / 180);   // campo de visión típico de la cámara trasera
+    const z = dotp(anchor, ax.fwd), xs = dotp(anchor, ax.right), ys = dotp(anchor, ax.up);
+    let tx, ty;
+    if (z > 0.08) { tx = xs / z * F; ty = -ys / z * F; }
+    else { const k = Math.hypot(xs, ys) || 1; tx = xs / k * w * 2; ty = -ys / k * h * 2; }   // está detrás: fuera de la pantalla
+    // inclinación del celular: el motor se mantiene derecho respecto al piso
+    const u = ax.right[2], v = ax.up[2];
+    const trot = Math.hypot(u, v) > 0.25 ? Math.atan2(u, v) : view.rot;
+    // suavizado ligero (los sensores tiemblan un poco)
+    const k = 0.35;
+    view.ox += (tx - view.ox) * k; view.oy += (ty - view.oy) * k; view.rot += angDiff(trot, view.rot) * k;
+    scene.view = view;
+    // indicador en el borde cuando el motor quedó fuera de la vista
+    const off = Math.abs(view.ox) > w * 0.55 || Math.abs(view.oy) > h * 0.55;
+    edge.hidden = !off;
+    if (off) {
+      const ang = Math.atan2(view.oy, view.ox);
+      const ex = Math.max(28, Math.min(w - 28, w / 2 + Math.cos(ang) * w)), ey = Math.max(70, Math.min(h - 28, h / 2 + Math.sin(ang) * h));
+      edge.style.transform = `translate(${ex}px, ${ey}px) translate(-50%, -50%) rotate(${ang}rad)`;
+    }
+  }
+  btn.addEventListener('click', () => (stream ? stop() : start()));
+  $('.arclose', hud).onclick = stop;
+  $('[data-ar="center"]', hud).onclick = () => { if (ori) anchor = deviceAxes(ori).fwd.slice(); view.ox = view.oy = 0; };
+  edge.onclick = () => $('[data-ar="center"]', hud).click();
+  cleanup.push(stop);
 }
