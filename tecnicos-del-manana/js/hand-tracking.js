@@ -233,6 +233,7 @@
           starting = false;
           if (disposed || !stream) { if (lmk && lmk !== landmarker) lmk.close(); return; }
           landmarker = lmk;
+          stage.__handGestures = testHook;                        // el gancho de pruebas apunta al control encendido
           active = true;
           lost = 99; resetTrackers(); buildShelf(); buildActions();
           setStatus(mobile ? 'Muestra tu mano frente a la cámara · pinza para tocar · pinza sostenida para girar' : 'Muestra tu mano a la cámara');
@@ -280,7 +281,20 @@
       var vw = (video && video.videoWidth) || 640, vh = (video && video.videoHeight) || 480;
       var s = Math.max(w / vw, h / vh);
       var x = facing === 'user' ? 1 - nx : nx;
-      return [(w - vw * s) / 2 + x * vw * s, (h - vh * s) / 2 + ny * vh * s];
+      var px = (w - vw * s) / 2 + x * vw * s, py = (h - vh * s) / 2 + ny * vh * s;
+      // el video de fondo puede estar ampliado por CSS (efecto del modo mano en el celular): se escala igual desde el centro
+      if (mode === 'background' && vScale !== 1) { px = w / 2 + (px - w / 2) * vScale; py = h / 2 + (py - h / 2) * vScale; }
+      return [px, py];
+    }
+    var vScale = 1;
+    /** escala visual actual del video de fondo (propiedad CSS `scale` o transform), 1 si no hay */
+    function readVideoScale() {
+      if (mode !== 'background' || !video) return 1;
+      var cs = getComputedStyle(video), sc = parseFloat(cs.scale);
+      if (!sc || isNaN(sc)) sc = 1;
+      var m = /matrix\(([^,]+),[^,]+,[^,]+,([^,]+)/.exec(cs.transform || '');
+      if (m) sc *= Math.abs(parseFloat(m[2])) || 1;   // scaleY de la matriz (scaleX puede ser −1 por el espejo)
+      return sc;
     }
     /** landmark normalizado → coordenadas de pantalla sobre el visor */
     function toStage(p) {
@@ -310,6 +324,7 @@
         key: key, missing: 0,
         fx: oneEuro(1.4, 0.03), fy: oneEuro(1.4, 0.03), gx: oneEuro(1.4, 0.03), gy: oneEuro(1.4, 0.03),
         pinched: false, pinchStart: null, prevPt: null, dragging: false, zooming: false, open: false, pt: null, thumb: null,
+        cursor: null, aim: null, hist: [],
         dot: dotEl(16), thumbDot: dotEl(11, 'background:transparent;border:2px solid #fff;box-shadow:0 0 0 2px rgba(245,130,31,.8)'), badge: badge,
       };
     }
@@ -318,7 +333,7 @@
     var anyDragging = function () { return list().some(function (t) { return t.dragging || t.zooming; }); };
     function hideTracker(t) {
       t.dot.style.display = t.thumbDot.style.display = t.badge.style.display = 'none';
-      t.pinched = t.dragging = t.zooming = t.open = false; t.pinchStart = t.prevPt = t.pt = t.thumb = null;
+      t.pinched = t.dragging = t.zooming = t.open = false; t.pinchStart = t.prevPt = t.pt = t.thumb = t.cursor = t.aim = null; t.hist = [];
     }
     function hideTrackers() { list().forEach(hideTracker); }
     function resetTrackers() { list().forEach(function (t) { hideTracker(t); t.fx.reset(); t.fy.reset(); t.gx.reset(); t.gy.reset(); t.missing = 99; }); }
@@ -448,7 +463,7 @@
     function tap(cx, cy, t) {
       var now = performance.now();
       if (now - lastTap < TAP_COOLDOWN) return;
-      lastTap = now; tapper = t;
+      lastTap = now; tapper = t; lastTapPt = [cx, cy];
       // botones dentro del visor (herramientas de la repisa, acciones del paso, acercar, "Comenzar"…).
       // Se buscan por geometría: elementFromPoint no ve lo que quedó fuera de la pantalla (visor parcialmente desplazado).
       var el = document.elementFromPoint(cx, cy);
@@ -473,9 +488,17 @@
       return null;
     }
 
-    /** Actualiza una mano: sus 2 puntos, la pinza y lo que hace (tocar / girar / agarrar). */
-    function updateTracker(t, lm, dt, r) {
-      if (t.missing > LOST_FRAMES) { t.fx.reset(); t.fy.reset(); t.gx.reset(); t.gy.reset(); }
+    /**
+     * Actualiza una mano: sus 2 puntos, la pinza y lo que hace (tocar / girar / agarrar).
+     * Clic fiable con una mano real:
+     *  · al cerrar los dedos el índice se desplaza hacia el pulgar y la mano tiembla; por eso el "clic"
+     *    se hace en el punto al que apuntabas JUSTO ANTES de que los dedos empezaran a juntarse
+     *    (se busca hacia atrás en el historial), no donde quedó al soltar;
+     *  · mientras la pinza está cerrada el puntero se queda quieto en ese punto (ves dónde vas a tocar);
+     *  · solo es "arrastre" (girar) si el punto de pinza se mueve de verdad: más de max(30 px, 7 % del visor).
+     */
+    function updateTracker(t, lm, dt, r, now) {
+      if (t.missing > LOST_FRAMES) { t.fx.reset(); t.fy.reset(); t.gx.reset(); t.gy.reset(); t.hist = []; }
       t.missing = 0;
       var d = dist(lm[4], lm[8]), palm = dist(lm[0], lm[9]) || 1e-3;
       var was = t.pinched;
@@ -483,33 +506,49 @@
       else if (t.pinched && d > PINCH_OFF && d / palm > PINCH_REL_OFF) t.pinched = false;
       t.open = !t.pinched && isOpenHand(lm);
       var cutoff = t.open ? 0.5 : undefined;                    // mano abierta: puntos más estables (precisión)
-      // punto 1 (puntero): punta del índice; con pinza, el punto medio pulgar–índice (más estable)
-      var src = t.pinched ? { x: (lm[4].x + lm[8].x) / 2, y: (lm[4].y + lm[8].y) / 2 } : lm[8];
-      var raw = toStage(src), rawT = toStage(lm[4]);
+      var mid = toStage({ x: (lm[4].x + lm[8].x) / 2, y: (lm[4].y + lm[8].y) / 2 });
+      // punto 1 (puntero): punta del índice; con pinza, el punto medio pulgar–índice
+      var raw = t.pinched ? mid : toStage(lm[8]), rawT = toStage(lm[4]);
       t.pt = [t.fx.filter(raw[0], dt, cutoff), t.fy.filter(raw[1], dt, cutoff)];
       // punto 2: punta del pulgar
       t.thumb = [t.gx.filter(rawT[0], dt, cutoff), t.gy.filter(rawT[1], dt, cutoff)];
-      var cx = t.pt[0], cy = t.pt[1];
-      t.dot.style.width = t.dot.style.height = t.pinched ? '20px' : '16px';
-      place(t.dot, cx, cy, r);
-      if (t.pinched) t.thumbDot.style.display = 'none'; else place(t.thumbDot, t.thumb[0], t.thumb[1], r);
 
-      if (t.pinched && !was) { t.pinchStart = [cx, cy]; t.prevPt = [cx, cy]; t.dragging = false; t.zooming = false; vel.x = vel.y = 0; }
+      // historial corto del índice mientras apunta (sin pinza)
+      if (!t.pinched) {
+        t.hist.push([now, t.pt[0], t.pt[1], d / palm]);
+        while (t.hist.length > 1 && now - t.hist[0][0] > 500) t.hist.shift();
+      }
+      if (t.pinched && !was) {
+        // instante en que empezó a cerrarse la pinza: hacia atrás mientras la separación pulgar–índice siga creciendo
+        var i = t.hist.length - 1;
+        while (i > 0 && t.hist[i - 1][3] >= t.hist[i][3] - 0.02) i--;
+        var aim = i >= 0 ? t.hist[i] : [now, t.pt[0], t.pt[1]];
+        t.aim = [aim[1], aim[2]];
+        t.pinchStart = mid; t.prevPt = t.pt; t.dragging = false; t.zooming = false; vel.x = vel.y = 0;
+        t.hist = [];
+      }
+      var dragPx = Math.max(30, 0.07 * Math.min(r.width, r.height));
       if (t.pinched) {
         if (twoPinch) t.zooming = true;                         // dos pinzas: el zoom lo resuelve handle()
         else {
-          if (!t.dragging && !t.zooming && Math.hypot(cx - t.pinchStart[0], cy - t.pinchStart[1]) > DRAG_PX) t.dragging = true;
+          if (!t.dragging && !t.zooming && Math.hypot(mid[0] - t.pinchStart[0], mid[1] - t.pinchStart[1]) > dragPx) { t.dragging = true; t.prevPt = t.pt; }
           if (t.dragging) {
-            var ddx = cx - t.prevPt[0], ddy = cy - t.prevPt[1];
+            var ddx = t.pt[0] - t.prevPt[0], ddy = t.pt[1] - t.prevPt[1];
             scene.rotateBy(ddx * 1.15, ddy * 1.15);
             vel.x = ddx * 1.15 / dt; vel.y = ddy * 1.15 / dt;
           }
         }
-        t.prevPt = [cx, cy];
+        t.prevPt = t.pt;
       }
+      // puntero visible: quieto en el punto apuntado mientras la pinza está cerrada (sin arrastrar)
+      t.cursor = t.pinched && !t.dragging && !t.zooming && t.aim ? t.aim : t.pt;
+      t.dot.style.width = t.dot.style.height = t.pinched ? '20px' : '16px';
+      place(t.dot, t.cursor[0], t.cursor[1], r);
+      if (t.pinched) t.thumbDot.style.display = 'none'; else place(t.thumbDot, t.thumb[0], t.thumb[1], r);
+
       if (!t.pinched && was) {
-        if (!t.dragging && !t.zooming) tap(cx, cy, t);
-        t.dragging = false; t.zooming = false; t.pinchStart = null; t.prevPt = null;
+        if (!t.dragging && !t.zooming && t.aim) tap(t.aim[0], t.aim[1], t);
+        t.dragging = false; t.zooming = false; t.pinchStart = null; t.prevPt = null; t.aim = null;
       }
       if (t.open) vel.x = vel.y = 0;
     }
@@ -521,6 +560,7 @@
       var hands = (res && res.landmarks) || [];
       var sides = (res && (res.handedness || res.handednesses)) || [];
       var r = stage.getBoundingClientRect();
+      vScale = readVideoScale();
       if (!hands.length) {
         if (++lost > LOST_FRAMES) {
           octx.clearRect(0, 0, overlay.width, overlay.height);
@@ -537,7 +577,7 @@
         var key = side && !seen[side] ? side : 'mano' + i;
         seen[key] = true;
         var t = trackers[key] || (trackers[key] = makeTracker(key));
-        updateTracker(t, lm, dt, r);
+        updateTracker(t, lm, dt, r, now);
         drawn.push({ lm: lm, t: t });
       });
       list().forEach(function (t) { if (!seen[t.key] && ++t.missing > LOST_FRAMES) hideTracker(t); });
@@ -567,7 +607,7 @@
 
       // resaltado: la mano en pinza, si no la que tiene herramienta, si no la primera
       var lead = pins[0] || carrier || vis[0];
-      var hit = lead ? scene.hoverAt(lead.pt[0], lead.pt[1]) : null;
+      var hit = lead ? scene.hoverAt(lead.cursor[0], lead.cursor[1]) : null;
       if (zoom) return setStatus('Dos manos: separa para acercar · junta para alejar');
       if (anyDragging()) return setStatus('Girando el modelo');
       var name = hit && scene.labels && scene.labels[hit];
@@ -603,10 +643,12 @@
     });
 
     // para pruebas automatizadas: inyecta un resultado de MediaPipe sin cámara
-    stage.__handGestures = { scene: scene, handle: function (res, t) { handle(res, t || performance.now()); }, state: function () {
+    var lastTapPt = null;
+    var testHook = { lastTap: function () { return lastTapPt; }, scene: scene, handle: function (res, t) { handle(res, t || performance.now()); }, state: function () {
       var v = visible(), t = v[0];
       return { hands: v.length, points: v.length * 2, pinched: !!(t && t.pinched), dragging: anyDragging(), open: !!(t && t.open), cursor: t ? t.pt : null, zoom: !!zoom, tool: heldTool() && heldTool().k, shelf: !!shelf };
     } };
+    if (!stage.__handGestures) stage.__handGestures = testHook;
     return api;
   }
 
