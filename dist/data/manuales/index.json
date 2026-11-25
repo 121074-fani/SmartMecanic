@@ -1,6 +1,35 @@
 {
   "schema": "fa.manuales/v1",
-  "actualizado": null,
-  "total": 0,
-  "manuales": []
+  "actualizado": "2026-11-25T01:27:25.427Z",
+  "total": 1,
+  "manuales": [
+    {
+      "codigo": "MOD-AV-215",
+      "id": "MOD-AV-215@1",
+      "nombre": "Inversor de tracción y control de motor · Bus eléctrico 12 m",
+      "categoria": "ev",
+      "vehiculo": "Autobús urbano eléctrico 12 m · 650 V CC",
+      "version": 1,
+      "versiones": [
+        1
+      ],
+      "fechaPublicacion": "2026-11-25T01:10:22.597Z",
+      "archivo": "MOD-AV-215.json",
+      "fuente": {
+        "archivo": "Cursos 2023.pdf",
+        "paginas": 25,
+        "metodo": "plantilla",
+        "hash": "18cfbfcecb77c1c7f2741e8e9d013fa1f4159b34e7123111223ce1e8606d4de4",
+        "motor": "local"
+      },
+      "totales": {
+        "reglasSeguridad": 5,
+        "paresApriete": 5,
+        "piezasSBOM": 7,
+        "lecciones": 4,
+        "preguntas": 17,
+        "procedimientos": 1
+      }
+    }
+  ]
 }

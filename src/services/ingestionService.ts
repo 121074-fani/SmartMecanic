@@ -13,6 +13,8 @@ import { EXTRACTION_DIESEL, EXTRACTION_EV } from '../data/mock';
 import { nextVersion, publishModule } from './moduleStore';
 import { api } from './hubClient';
 import type {
+  AiLesson,
+  AiQuestion,
   Criticality,
   ExtractedRule,
   ExtractionMeta,
@@ -280,13 +282,182 @@ const prettyName = (fileName: string) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-const codeFromHash = (category: ModuleCategory, seed: string) => {
+const codeFromHash = (category: ModuleCategory | 'general', seed: string) => {
   let h = 0;
   for (const ch of seed) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return `MOD-${category === 'ev' ? 'AV' : 'MP'}-${300 + (h % 600)}`;
+  return `MOD-${category === 'ev' ? 'AV' : category === 'diesel' ? 'MP' : 'CU'}-${300 + (h % 600)}`;
 };
 
-const template = (category: ModuleCategory) => (category === 'ev' ? EXTRACTION_EV : EXTRACTION_DIESEL);
+/* ───── Síntesis didáctica local (cualquier documento: catálogos de cursos, guías, manuales) ───── */
+
+interface DocSection {
+  title: string;
+  page: number;
+  sentences: string[];
+  facts: { label: string; value: string }[];
+}
+
+const COMP_RULES: [string, RegExp][] = [
+  ['hv', /alto voltaje|alta tensi[oó]n|seguridad el[eé]ctrica|\bLOTO\b|\bEPP\b|NFPA|OSHA|arco el[eé]ctrico/i],
+  ['ev', /el[eé]ctric[oa]s? de tracci|bater[ií]a|inversor|electromovilidad|h[ií]brid|veh[ií]culo el[eé]ctrico|\bBEV\b/i],
+  ['diesel', /di[eé]sel|motor de combusti[oó]n|inyecci[oó]n|turbo|emisiones|\bDPF\b|\bSCR\b|lubricaci[oó]n/i],
+  ['con', /\bCAN\b|J1939|telem[aá]tica|redes? de datos|conectividad|comunicaci[oó]n/i],
+  ['sw', /software|programaci[oó]n|\bECU\b|actualizaci[oó]n|firmware/i],
+  ['elec', /el[eé]ctric|electr[oó]nic|24 ?V|circuito|mult[ií]metro|sensor/i],
+];
+const compOf = (text: string) => COMP_RULES.find(([, rx]) => rx.test(text))?.[0] ?? 'diag';
+
+const STOPWORDS = new Set(
+  'para como sobre entre desde hasta donde cuando durante mediante través cada todos todas puede pueden deben debe será están tiene tienen hacer realizar mismo misma otros otras también además sistema sistemas parte partes curso cursos tema temas'.split(' '),
+);
+
+const isHeadingLine = (l: string) => {
+  const w = l.split(/\s+/).length;
+  return (
+    l.length >= 4 &&
+    l.length <= 90 &&
+    w <= 12 &&
+    !l.includes(':') &&
+    !/[.;,]$/.test(l) &&
+    /^[A-ZÁÉÍÓÚÑ0-9¿"«]/.test(l) &&
+    /[A-Za-zÁÉÍÓÚÑáéíóúñ]{3}/.test(l) &&
+    !/^\d+([.,]\d+)?$/.test(l)
+  );
+};
+
+/** Divide el documento en secciones (encabezado → frases y datos "Etiqueta: valor"). */
+function sectionize(pages: string[]): DocSection[] {
+  const out: DocSection[] = [];
+  let cur: DocSection | null = null;
+  let buffer = '';
+  const flush = () => {
+    if (!cur) return;
+    cur.sentences.push(
+      ...buffer
+        .split(/(?<=[.!?;])\s+/)
+        .map((s) => s.replace(/\s+/g, ' ').trim())
+        .filter((s) => s.length >= 25 && s.length <= 260 && /[a-záéíóúñ]{3}/i.test(s)),
+    );
+    buffer = '';
+  };
+  pages.forEach((page, pi) => {
+    page.split('\n').forEach((raw) => {
+      const l = raw.replace(/^[\s•\-–·*]+/, '').trim();
+      if (!l) return;
+      const fact = l.match(/^([A-Za-zÁÉÍÓÚÑáéíóúñ ()/]{3,30}):\s*(.{2,120})$/);
+      if (isHeadingLine(l) && !fact) {
+        flush();
+        if (cur && !cur.sentences.length && !cur.facts.length && cur.title.length + l.length < 90) {
+          cur.title = `${cur.title} ${l}`; // encabezado partido en dos líneas
+          return;
+        }
+        cur = { title: l, page: pi + 1, sentences: [], facts: [] };
+        out.push(cur);
+        return;
+      }
+      if (!cur) {
+        cur = { title: `Página ${pi + 1}`, page: pi + 1, sentences: [], facts: [] };
+        out.push(cur);
+      }
+      if (fact) {
+        flush();
+        cur.facts.push({ label: fact[1].trim(), value: fact[2].trim().replace(/[.;]$/, '') });
+      } else buffer += ` ${l}`;
+    });
+    flush();
+  });
+  return out.filter((s) => s.sentences.length + s.facts.length >= 2);
+}
+
+const keywordOf = (s: string) =>
+  [...s.matchAll(/[A-Za-zÁÉÍÓÚÑáéíóúñ]{7,}/g)].map((m) => m[0]).find((w) => !STOPWORDS.has(w.toLowerCase()));
+const uniq = (a: string[]) => [...new Set(a.filter(Boolean))];
+
+/** Lecciones y preguntas construidas SOLO con el texto del documento (sin IA). */
+function synthesizeLocal(sections: DocSection[]): { lessons: AiLesson[]; questions: AiQuestion[] } {
+  const rich = [...sections].sort((a, b) => b.sentences.length + b.facts.length - (a.sentences.length + a.facts.length)).slice(0, 6);
+  const allKeywords = uniq(sections.flatMap((s) => s.sentences.map(keywordOf) as string[]));
+  const lessons: AiLesson[] = [];
+  const questions: AiQuestion[] = [];
+
+  const cloze = (s: string, sec: DocSection): AiQuestion | null => {
+    const kw = keywordOf(s);
+    if (!kw) return null;
+    const distract = allKeywords.filter((k) => k.toLowerCase() !== kw.toLowerCase()).slice(0, 12);
+    if (distract.length < 3) return null;
+    const pick = [...distract].sort((a, b) => Math.abs(a.length - kw.length) - Math.abs(b.length - kw.length)).slice(0, 3);
+    return {
+      comp: compOf(`${sec.title} ${s}`),
+      level: s.length > 140 ? 2 : 1,
+      question: `Completa según «${short(sec.title, 60)}»: ${s.replace(kw, '_____')}`,
+      options: [kw, ...pick],
+      correctIndex: 0,
+      explanation: `${s} (pág. ${sec.page})`,
+    };
+  };
+
+  rich.forEach((sec) => {
+    const cards = [
+      ...sec.facts.slice(0, 3).map((f) => ({ t: f.label, b: f.value })),
+      ...sec.sentences.slice(0, 5 - Math.min(3, sec.facts.length)).map((s, i) => ({ t: i === 0 ? 'Idea principal' : `Punto ${i + 1}`, b: s })),
+    ].slice(0, 5);
+    if (cards.length < 2) return;
+    // verificación: un dato de la sección o una frase para completar
+    const f0 = sec.facts[0];
+    const factOthers = f0 ? uniq(sections.filter((o) => o !== sec).flatMap((o) => o.facts.filter((f) => f.label.toLowerCase() === f0.label.toLowerCase()).map((f) => f.value))) : [];
+    let check: { q: string; o: string[] } | null = null;
+    if (f0 && factOthers.length >= 3) check = { q: `${f0.label} de «${short(sec.title, 60)}»:`, o: [f0.value, ...factOthers.filter((v) => v !== f0.value).slice(0, 3)] };
+    if (!check) {
+      const c = sec.sentences.map((s) => cloze(s, sec)).find(Boolean);
+      if (c) check = { q: c.question, o: c.options };
+    }
+    if (!check) return;
+    lessons.push({
+      comp: compOf(`${sec.title} ${cards.map((c) => c.b).join(' ')}`),
+      level: 1,
+      title: short(sec.title, 80),
+      cards,
+      key: short(sec.sentences[0] ?? `${f0?.label}: ${f0?.value}`, 140),
+      checkQuestion: check.q,
+      checkOptions: check.o,
+      checkCorrectIndex: 0,
+    });
+  });
+
+  // preguntas: datos comparables entre secciones (p. ej. duración / modalidad de cada curso)
+  sections.forEach((sec) =>
+    sec.facts.forEach((f) => {
+      const others = uniq(sections.filter((o) => o !== sec).flatMap((o) => o.facts.filter((x) => x.label.toLowerCase() === f.label.toLowerCase()).map((x) => x.value))).filter((v) => v !== f.value);
+      if (others.length >= 3 && questions.length < 6)
+        questions.push({ comp: compOf(sec.title), level: 2, question: `${f.label} de «${short(sec.title, 70)}»:`, options: [f.value, ...others.slice(0, 3)], correctIndex: 0, explanation: `${sec.title} — ${f.label}: ${f.value} (pág. ${sec.page}).` });
+    }),
+  );
+  // ¿a qué tema pertenece?
+  if (sections.length >= 4) {
+    sections.slice(0, 4).forEach((sec) => {
+      const s = sec.sentences[0];
+      if (!s) return;
+      const titles = uniq(sections.filter((o) => o !== sec).map((o) => short(o.title, 70))).slice(0, 3);
+      if (titles.length === 3) questions.push({ comp: compOf(sec.title), level: 2, question: `¿A qué tema del documento pertenece: «${short(s, 120)}»?`, options: [short(sec.title, 70), ...titles], correctIndex: 0, explanation: `Sección «${sec.title}», pág. ${sec.page}.` });
+    });
+  }
+  // frases para completar
+  sections.flatMap((sec) => sec.sentences.slice(0, 2).map((s) => cloze(s, sec))).filter((x): x is AiQuestion => !!x).slice(0, 12 - questions.length).forEach((q) => questions.push(q));
+  return { lessons, questions: questions.slice(0, 12) };
+}
+
+/** Extracción vacía: nunca se sustituye un documento real por contenido de ejemplo. */
+export const emptyExtraction = (fileName: string, note: string, pages = 0): ManualExtraction => ({
+  moduleName: prettyName(fileName),
+  moduleCode: codeFromHash('ev', fileName),
+  vehicle: '—',
+  pages,
+  chunks: 0,
+  rules: [],
+  torques: [],
+  sbom: [],
+  meta: { method: 'sin-texto', category: 'ev', sourceFile: fileName, sourceHash: null, textChars: 0, notes: [note], engine: 'local', docKind: 'general' },
+});
 
 export function analyzeText(pdf: PdfText, fileName: string, hash: string | null): ManualExtraction {
   const text = pdf.pages.join('\n');
@@ -304,31 +475,43 @@ export function analyzeText(pdf: PdfText, fileName: string, hash: string | null)
   });
 
   if (text.replace(/\s/g, '').length < 200) {
-    notes.push('El PDF no tiene capa de texto (posible escaneo). Se aplicó la plantilla del dominio detectado; requiere OCR para extracción real.');
-    const t = template(category);
-    return { ...t, pages: pdf.numPages || t.pages, meta: baseMeta('plantilla') };
+    return {
+      ...emptyExtraction(fileName, 'El PDF no tiene capa de texto (posible escaneo): no se publicará contenido inventado. Usa un PDF con texto seleccionable o configura OCR/IA.', pdf.numPages),
+      meta: { ...baseMeta('sin-texto'), notes: ['El PDF no tiene capa de texto (posible escaneo): no se publicará contenido inventado. Usa un PDF con texto seleccionable o configura OCR/IA.'], engine: 'local', docKind: 'general' },
+    };
   }
 
-  const rules = extractRules(pdf.pages, category);
+  let rules = extractRules(pdf.pages, category);
   const torques = extractTorques(pdf.pages, category);
   const sbom = extractSbom(pdf.pages);
 
-  if (!rules.length && !torques.length && !sbom.length) {
-    notes.push('No se detectaron reglas, pares de apriete ni códigos de pieza en el texto. Se aplicó la plantilla del dominio detectado.');
-    const t = template(category);
-    return { ...t, pages: pdf.numPages, chunks: Math.max(1, Math.ceil(words / 380)), meta: baseMeta('plantilla') };
+  // Documento que no es manual de taller (catálogo de cursos, guía, temario…): contenido didáctico del propio texto
+  const isWorkshop = torques.length + sbom.length >= 1 || rules.filter((r) => r.category === 'Seguridad AV').length >= 2;
+  const sections = sectionize(pdf.pages);
+  const synth = synthesizeLocal(sections);
+  if (!isWorkshop) {
+    const keyContents: ExtractedRule[] = sections.slice(0, 12).map((s, i) => ({
+      id: '',
+      rule: s.sentences[0] ? `${s.title}: ${s.sentences[0]}` : `${s.title}: ${s.facts.map((f) => `${f.label} ${f.value}`).join(' · ')}`,
+      category: 'Procedimiento' as const,
+      page: s.page,
+      confidence: i < 8 ? 0.93 : 0.88,
+    }));
+    rules = [...rules.filter((r) => r.category === 'Seguridad AV'), ...keyContents].slice(0, 14).map((r, i) => ({ ...r, id: `R${i + 1}` }));
+    notes.push(`Documento general (no es manual de taller): ${sections.length} secciones detectadas; se generaron ${synth.lessons.length} lecciones y ${synth.questions.length} preguntas con su propio texto.`);
+  } else {
+    if (!torques.length) notes.push('Sin pares de apriete (N·m / lb·ft) en el texto.');
+    if (!sbom.length) notes.push('Sin códigos de pieza identificables para el SBOM.');
   }
-  if (!torques.length) notes.push('Sin pares de apriete (N·m / lb·ft) en el texto.');
-  if (!sbom.length) notes.push('Sin códigos de pieza identificables para el SBOM.');
 
   const firstLines = (pdf.pages[0] ?? '').split('\n').map((l) => l.trim()).filter((l) => l.length > 8 && l.length < 90 && /[a-záéíóúñ]{4}/i.test(l));
   // título: metadatos del PDF, o la primera línea "de encabezado" (no es oración, advertencia ni DTC)
   const heading = firstLines.slice(0, 6).find((l) => !/[.:;]$/.test(l) && !SAFETY_RX.test(l) && !DIAG_RX.test(l) && l.split(/\s+/).length <= 12);
   const moduleName = pdf.title ?? heading ?? prettyName(fileName);
-  const moduleCode = text.match(/\bMOD-[A-Z]{2}-\d{3}\b/)?.[0] ?? codeFromHash(category, hash ?? fileName);
+  const moduleCode = text.match(/\bMOD-[A-Z]{2}-\d{3}\b/)?.[0] ?? codeFromHash(isWorkshop ? category : 'general', hash ?? fileName);
   const vehicle =
     text.match(/((?:autob[uú]s|bus|cami[oó]n|tractocami[oó]n|combi|unidad)[^.\n]{3,60})/i)?.[1]?.trim() ??
-    (category === 'ev' ? 'Unidad eléctrica (AV)' : 'Unidad diésel');
+    (isWorkshop ? (category === 'ev' ? 'Unidad eléctrica (AV)' : 'Unidad diésel') : 'Formación técnica');
 
   return {
     moduleName: moduleName.slice(0, 90),
@@ -339,7 +522,15 @@ export function analyzeText(pdf: PdfText, fileName: string, hash: string | null)
     rules,
     torques,
     sbom,
-    meta: baseMeta('pdf-text'),
+    meta: {
+      ...baseMeta('pdf-text'),
+      engine: 'local',
+      docKind: isWorkshop ? 'manual' : 'general',
+      // en manuales se agrega solo si el texto tiene secciones claras; en documentos generales es el contenido principal
+      synth: 'local',
+      aiLessons: isWorkshop ? synth.lessons.slice(0, 2) : synth.lessons,
+      aiQuestions: isWorkshop ? synth.questions.slice(0, 4) : synth.questions,
+    },
   };
 }
 
@@ -352,6 +543,7 @@ type AiResponse =
       provider: string;
       model: string;
       extraction: {
+        documentType: 'manual_taller' | 'catalogo_cursos' | 'otro';
         moduleName: string;
         moduleCode: string | null;
         vehicle: string;
@@ -385,6 +577,8 @@ function fromAi(ai: Extract<AiResponse, { mode: 'ai' }>, local: ManualExtraction
     engine: 'ia-cloud',
     provider: ai.provider,
     model: ai.model,
+    docKind: x.documentType === 'manual_taller' ? 'manual' : 'general',
+    synth: 'ia',
     aiLessons: x.lessons,
     aiQuestions: x.questions,
   };
@@ -420,10 +614,8 @@ export async function extractFromFile(file: File): Promise<ManualExtraction> {
   if (!ai) return asLocal('API local / internet no disponible');
   if (ai.mode !== 'ai') return asLocal(ai.reason);
   const ex = fromAi(ai, local);
-  // si la IA no devolvió entidades accionables, se conserva lo que encontró el motor local
-  if (!ex.rules.length && !ex.torques.length && !ex.sbom.length) {
-    return { ...local, meta: { ...(local.meta as ExtractionMeta), engine: 'ia-cloud', provider: ai.provider, model: ai.model, aiLessons: ex.meta?.aiLessons, aiQuestions: ex.meta?.aiQuestions } };
-  }
+  // si la IA no devolvió entidades seleccionables, se conservan los contenidos clave del motor local
+  if (!ex.rules.length && !ex.torques.length && !ex.sbom.length) return { ...ex, rules: local.rules };
   return ex;
 }
 
@@ -572,8 +764,12 @@ function buildTraining(pkg: Omit<PublishedModulePackage, 'entrenamiento'>, meta?
     }
   }
 
+  const general = meta?.docKind === 'general';
   /* --- diagnóstico / procedimiento (reglas no obligatorias) --- */
-  if (others.length) {
+  if (others.length && general) {
+    // documento general: los contenidos clave alimentan al asistente; las lecciones salen de la síntesis del texto
+    docs.push({ id: `${codigo} §Contenidos`, title: `${pkg.nombre} — Contenidos clave`, text: others.map((r) => r.texto).join(' ') });
+  } else if (others.length) {
     const ref = `${codigo} §Procedimiento`;
     docs.push({ id: ref, title: `${pkg.nombre} — Reglas de procedimiento y diagnóstico`, text: others.map((r) => r.texto).join(' ') });
     lecciones.push({
@@ -640,8 +836,9 @@ function buildTraining(pkg: Omit<PublishedModulePackage, 'entrenamiento'>, meta?
     pkg.piezasSBOM.slice(0, 6).forEach((p) => q(techComp, 2, `Código SBOM de «${short(p.nombre, 70)}» en ${codigo}:`, codeOpts(p.codigo), `${p.codigo} · ${p.nombre} · grupo ${p.grupoFuncion} · criticidad ${p.criticidad}.`));
   }
 
-  /* --- procedimiento jugable (Taller / Rescate) --- */
+  /* --- procedimiento jugable (Taller / Rescate): solo si el documento trae seguridad o pares de apriete --- */
   const procedimientos: TdmProcedure[] = [];
+  const withProcedure = !general && (mandatory.length > 0 || pkg.paresApriete.length > 0);
   const procId = `${key}-taller`;
   const ruleFor = (t: SafetyRuleType) => mandatory.find((r) => r.tipo === t);
   const torqueSteps: TdmProcedureStep[] = pkg.paresApriete.slice(0, 4).map((t) => ({
@@ -691,7 +888,7 @@ function buildTraining(pkg: Omit<PublishedModulePackage, 'entrenamiento'>, meta?
     ];
   }
   steps = steps.map((s) => (s.check === undefined ? (({ check: _c, ...rest }) => rest)(s) : s));
-  procedimientos.push({
+  if (withProcedure) procedimientos.push({
     id: procId,
     title: `${codigo} · ${short(pkg.nombre, 60)}`,
     mode: categoria,
@@ -707,7 +904,7 @@ function buildTraining(pkg: Omit<PublishedModulePackage, 'entrenamiento'>, meta?
   /* --- fichas y tareas por pieza (se agregan a las existentes) --- */
   const partInfo: TrainingContent['partInfo'] = {};
   const tareasPiezas: TrainingContent['tareasPiezas'] = {};
-  const touch = (pid: string) => (partInfo[pid] ??= { specs: [], procs: [procId], tools: [] });
+  const touch = (pid: string) => (partInfo[pid] ??= { specs: [], procs: withProcedure ? [procId] : [], tools: [] });
   pkg.paresApriete.forEach((t) => {
     const p = touch(t.parteId);
     p.specs.push(`${t.componente}: ${t.especificacion} (${codigo}, pág. ${t.pagina})`);
@@ -765,7 +962,8 @@ export function buildPackage(
   const reglasSeguridad: SafetyRule[] = rules
     .map((r) => {
       const tipo = classifySafety(r.rule);
-      const safety = r.category === 'Seguridad AV' || (tipo !== 'general' && SAFETY_RX.test(r.rule));
+      // en documentos generales (catálogos, guías) no se fabrican secuencias obligatorias de seguridad
+      const safety = ex.meta?.docKind !== 'general' && (r.category === 'Seguridad AV' || (tipo !== 'general' && SAFETY_RX.test(r.rule)));
       return { r, tipo, safety };
     })
     .sort((a, b) => (a.safety === b.safety ? TYPE_ORDER[a.tipo] - TYPE_ORDER[b.tipo] || a.r.page - b.r.page : a.safety ? -1 : 1))
@@ -809,6 +1007,7 @@ export function buildPackage(
       metodo: ex.meta?.method ?? 'plantilla',
       hash: ex.meta?.sourceHash ?? null,
       motor: ex.meta?.engine ?? 'local',
+      tipoDocumento: ex.meta?.docKind ?? 'manual',
       ...(ex.meta?.provider ? { proveedor: `${ex.meta.provider} (${ex.meta.model})` } : {}),
     },
     reglasSeguridad,
@@ -818,9 +1017,40 @@ export function buildPackage(
   return { ...base, entrenamiento: buildTraining(base, ex.meta) };
 }
 
+/** Reconstruye la extracción tal como se publicó (historial de ingesta del supervisor). */
+export function extractionFromPackage(p: PublishedModulePackage): ManualExtraction {
+  return {
+    moduleName: p.nombre,
+    moduleCode: p.codigo,
+    vehicle: p.vehiculo,
+    pages: p.fuente.paginas,
+    chunks: 0,
+    rules: p.reglasSeguridad.map((r) => ({
+      id: r.id,
+      rule: r.texto,
+      category: r.obligatoria ? (p.categoria === 'ev' ? 'Seguridad AV' : 'Procedimiento') : 'Procedimiento',
+      page: r.pagina,
+      confidence: 1,
+    })),
+    torques: p.paresApriete.map((t) => ({ component: t.componente, spec: t.especificacion, sequence: t.secuencia, tool: t.herramienta, page: t.pagina })),
+    sbom: p.piezasSBOM.map((x) => ({ code: x.codigo, description: x.nombre, criticality: x.criticidad, workshop: x.taller, rescueKit: x.kitRescate, qty: x.cantidad })),
+    meta: {
+      method: p.fuente.metodo,
+      category: p.categoria,
+      sourceFile: p.fuente.archivo,
+      sourceHash: p.fuente.hash,
+      textChars: 0,
+      notes: [],
+      engine: p.fuente.motor,
+      docKind: p.fuente.tipoDocumento,
+    },
+  };
+}
+
 /** Construye y persiste el paquete en el almacén compartido (localStorage + API local). */
-export async function publishPackage(ex: ManualExtraction, sel: SelectionInput, publishedBy: string) {
+export async function publishPackage(ex: ManualExtraction, sel: SelectionInput, publishedBy: string, fileSize?: number) {
   const pkg = buildPackage(ex, sel, { publishedBy });
+  if (fileSize) pkg.fuente.tamano = fileSize;
   const { synced, json } = await publishModule(pkg);
   return { pkg, synced, json };
 }

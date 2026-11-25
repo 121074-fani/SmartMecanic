@@ -21,7 +21,7 @@
  * Es un backend de demo: sin autenticación de API ni cifrado. En producción se reemplaza
  * por un servicio con IdP corporativo y base de datos.
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Connect, Plugin } from 'vite';
@@ -119,16 +119,59 @@ export function hubApi(opts: { file?: string; publicDir?: string; env?: Record<s
       /* sin permisos de escritura en public/ */
     }
   }
+  /*
+   * Varias instancias pueden escribir el mismo archivo (reinicios de Vite al cambiar la config,
+   * `vite preview` y `vite dev` a la vez…). Para no perder datos, nunca se sobrescribe a ciegas:
+   * se fusiona con lo que haya en disco (módulos por id, eventos por eventId, sesiones por token).
+   */
+  const readDisk = (): HubDb | null => {
+    try {
+      return existsSync(file) ? { modules: [], events: [], sessions: [], ...JSON.parse(readFileSync(file, 'utf8')) } : null;
+    } catch {
+      return null;
+    }
+  };
+  const unionBy = <T,>(a: T[], b: T[], key: (x: T) => string) => {
+    const m = new Map<string, T>();
+    [...a, ...b].forEach((x) => m.set(key(x), x));
+    return [...m.values()];
+  };
+  const mergeDb = (base: HubDb, other: HubDb): HubDb => ({
+    modules: unionBy(other.modules, base.modules, (m) => m.id).sort((a, b) => b.fechaPublicacion.localeCompare(a.fechaPublicacion)),
+    events: unionBy(other.events, base.events, (e) => e.eventId).sort((a, b) => a.timestamp - b.timestamp).slice(-MAX_EVENTS),
+    sessions: unionBy(other.sessions, base.sessions, (s) => s.token).slice(-2000),
+  });
+  let diskMtime = 0;
+  const mtimeOf = () => {
+    try {
+      return statSync(file).mtimeMs;
+    } catch {
+      return 0;
+    }
+  };
+  /** si otro proceso escribió el archivo, se incorporan sus datos antes de atender la petición */
+  const refreshFromDisk = () => {
+    const m = mtimeOf();
+    if (m && m !== diskMtime) {
+      const disk = readDisk();
+      if (disk) db = mergeDb(db, disk);
+      diskMtime = m;
+    }
+  };
   let timer: NodeJS.Timeout | null = null;
   const persist = () => {
     if (timer) return;
     timer = setTimeout(() => {
       timer = null;
+      const disk = readDisk();
+      if (disk) db = mergeDb(db, disk);
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(`${file}.tmp`, JSON.stringify(db));
       renameSync(`${file}.tmp`, file);
+      diskMtime = mtimeOf();
     }, 250);
   };
+  diskMtime = mtimeOf();
 
   const send = (res: ServerResponse, status: number, body: unknown) => {
     res.statusCode = status;
@@ -164,6 +207,7 @@ export function hubApi(opts: { file?: string; publicDir?: string; env?: Record<s
   const handler: Connect.NextHandleFunction = async (req, res, next) => {
     const url = new URL(req.url ?? '/', 'http://hub.local');
     if (!url.pathname.startsWith('/api/')) return next();
+    refreshFromDisk();
     const route = `${req.method} ${url.pathname.replace(/\/+$/, '')}`;
     try {
       switch (route) {

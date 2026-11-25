@@ -151,7 +151,8 @@ export type AseSpecialty = 'T2' | 'T6' | 'H' | 'L3';
 
 /** Datos adicionales que el extractor real adjunta a `ManualExtraction`. */
 export interface ExtractionMeta {
-  method: 'pdf-text' | 'plantilla';
+  /** pdf-text: texto real · plantilla: solo el manual de ejemplo · sin-texto: PDF escaneado (no se inventa contenido) */
+  method: 'pdf-text' | 'plantilla' | 'sin-texto';
   category: ModuleCategory;
   sourceFile: string;
   sourceHash: string | null;
@@ -163,7 +164,11 @@ export interface ExtractionMeta {
   model?: string;
   /** por qué se usó el motor local (sin API key, sin internet…) */
   reason?: string;
-  /** contenido didáctico sintetizado por la IA (se suma al generado por reglas) */
+  /** manual de taller (pares, SBOM, seguridad) o documento general (catálogo de cursos, guía, temario) */
+  docKind?: 'manual' | 'general';
+  /** quién sintetizó las lecciones/preguntas: la IA o el motor local a partir del texto */
+  synth?: 'ia' | 'local';
+  /** contenido didáctico sintetizado del documento (se suma al generado por reglas) */
   aiLessons?: AiLesson[];
   aiQuestions?: AiQuestion[];
 }
@@ -319,6 +324,9 @@ export interface PublishedModulePackage {
     /** 'ia-cloud' (Claude / OpenAI / Gemini) o 'local' (motor de reglas offline) */
     motor?: 'ia-cloud' | 'local';
     proveedor?: string;
+    tipoDocumento?: 'manual' | 'general';
+    /** tamaño del PDF en bytes (historial de ingesta) */
+    tamano?: number;
   };
   reglasSeguridad: SafetyRule[];
   paresApriete: TorquePair[];

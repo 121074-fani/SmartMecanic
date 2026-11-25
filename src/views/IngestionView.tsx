@@ -20,10 +20,10 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '../components/ui';
 import { EXTRACTION_DIESEL, EXTRACTION_EV, PROCESS_STEPS, SAMPLE_MANUAL } from '../data/mock';
-import { extractFromFile, publishPackage, sampleExtraction } from '../services/ingestionService';
-import { toPublishedSummary } from '../services/moduleStore';
+import { emptyExtraction, extractFromFile, extractionFromPackage, publishPackage, sampleExtraction } from '../services/ingestionService';
+import { listModules, toPublishedSummary } from '../services/moduleStore';
 import { loadSession } from '../services/authService';
-import type { Criticality, ManualExtraction, PublishedModule } from '../types';
+import type { Criticality, ManualExtraction, PublishedModule, PublishedModulePackage } from '../types';
 
 const STEP_MS = 750;
 
@@ -38,6 +38,8 @@ interface IngestedFile {
   pages: number | null;
   sample: boolean;
   status: FileStatus;
+  /** paquete publicado a partir de este archivo (historial persistente) */
+  packageId?: string;
 }
 
 type Mode = 'auto' | 'manual';
@@ -64,16 +66,37 @@ const STATUS_STYLE: Record<FileStatus, string> = {
 
 /** Criterios de la selección automática del sistema. */
 const AUTO_RULES = 'Reglas con confianza ≥ 92 %, todos los pares de apriete y piezas SBOM de criticidad Media o superior.';
-const autoSelection = (ex: ManualExtraction): Selection => ({
-  mode: 'auto',
-  rules: ex.rules.filter((r) => r.confidence >= 0.92).map((r) => r.id),
-  torques: ex.torques.map((t) => t.component),
-  sbom: ex.sbom.filter((p) => p.criticality !== 'Baja').map((p) => p.code),
-});
+const autoSelection = (ex: ManualExtraction): Selection => {
+  const rules = ex.rules.filter((r) => r.confidence >= 0.92).map((r) => r.id);
+  return {
+    mode: 'auto',
+    // si ninguna regla alcanza el umbral, se toman las 5 de mayor confianza para no dejar el módulo vacío
+    rules: rules.length || ex.torques.length || ex.sbom.length ? rules : [...ex.rules].sort((a, b) => b.confidence - a.confidence).slice(0, 5).map((r) => r.id),
+    torques: ex.torques.map((t) => t.component),
+    sbom: ex.sbom.filter((p) => p.criticality !== 'Baja').map((p) => p.code),
+  };
+};
+
+/** Registro del historial de ingesta a partir de un paquete publicado (persistente entre recargas). */
+const historyRecord = (p: PublishedModulePackage): IngestedFile => {
+  const at = Date.parse(p.fechaPublicacion) || Date.now();
+  return {
+    id: `pkg:${p.id}`,
+    name: `${p.fuente.archivo}${p.version > 1 ? ` · v${p.version}` : ''}`,
+    size: p.fuente.tamano ?? 0,
+    type: 'application/pdf',
+    lastModified: at,
+    uploadedAt: fmtDate(at),
+    pages: p.fuente.paginas || null,
+    sample: p.fuente.metodo === 'plantilla',
+    status: 'Publicado',
+    packageId: p.id,
+  };
+};
 
 const extractionFor = (name: string) => (/inversor|electric|eléctric|bev|hv|bater/i.test(name) ? EXTRACTION_EV : EXTRACTION_DIESEL);
 
-const fmtSize = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+const fmtSize = (b: number) => (!b ? 'tamaño no registrado' : b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 const fmtDate = (ms: number) => new Date(ms).toLocaleString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 /** Cuenta páginas leyendo la estructura del PDF real (sin librerías). */
@@ -117,7 +140,46 @@ export default function IngestionView({
   const [extractions, setExtractions] = useState<Record<string, ManualExtraction>>({});
   const publishing = useRef(false);
   const waitingFor = useRef<string | null>(null);
-  const extractionOf = (f: IngestedFile) => extractions[f.id] ?? extractionFor(f.name);
+  const extractionOf = (f: IngestedFile) => extractions[f.id] ?? (f.sample ? extractionFor(f.name) : emptyExtraction(f.name, 'Sin extracción disponible.'));
+
+  // Log por archivo: al seleccionar un archivo del historial se muestra su propio resumen
+  const logsByFile = useRef<Record<string, string[]>>({});
+  useEffect(() => {
+    if (activeId) logsByFile.current[activeId] = logs;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logs]);
+  useEffect(() => {
+    if (!activeId || activeId === processingId) return;
+    const f = files.find((x) => x.id === activeId);
+    const pkg = f?.packageId ? listModules().find((p) => p.id === f.packageId) : undefined;
+    const saved = logsByFile.current[activeId];
+    if (saved?.length) setLogs(saved);
+    else if (pkg)
+      setLogs([
+        `> Historial: "${pkg.fuente.archivo}" publicado el ${fmtDate(Date.parse(pkg.fechaPublicacion))} por ${pkg.publicadoPor}`,
+        `✓ Modo de extracción: ${pkg.fuente.motor === 'ia-cloud' ? `IA Cloud · ${pkg.fuente.proveedor ?? ''}` : pkg.fuente.metodo === 'plantilla' ? 'Plantilla de ejemplo (no proviene del texto del PDF)' : 'Motor Local Offline'}`,
+        `✓ Paquete ${pkg.id} · ${pkg.entrenamiento.lecciones.length} lecciones · ${pkg.entrenamiento.preguntas.length} preguntas · ${pkg.entrenamiento.procedimientos.length} procedimiento(s)`,
+        `  JSON público: /data/manuales/${pkg.codigo}.json`,
+      ]);
+    else setLogs([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
+
+  // Historial de ingesta: todo lo publicado (en esta u otra sesión / dispositivo) se lista como "Publicado"
+  useEffect(() => {
+    const pkgs = listModules();
+    setFiles((fs) => {
+      const known = new Set(fs.map((f) => f.packageId).filter(Boolean));
+      const add = pkgs.filter((p) => !known.has(p.id));
+      if (!add.length) return fs;
+      setExtractions((e) => ({ ...e, ...Object.fromEntries(add.map((p) => [`pkg:${p.id}`, extractionFromPackage(p)])) }));
+      setSelections((s) => ({
+        ...s,
+        ...Object.fromEntries(add.map((p) => { const ex = extractionFromPackage(p); return [`pkg:${p.id}`, { mode: 'auto' as const, rules: ex.rules.map((r) => r.id), torques: ex.torques.map((t) => t.component), sbom: ex.sbom.map((x) => x.code) }]; })),
+      }));
+      return [...fs, ...add.map(historyRecord)];
+    });
+  }, [published]);
 
   const active = files.find((f) => f.id === activeId) ?? null;
   const patch = (id: string, p: Partial<IngestedFile>) => setFiles((fs) => fs.map((f) => (f.id === id ? { ...f, ...p } : f)));
@@ -182,7 +244,7 @@ export default function IngestionView({
     // lectura y extracción REAL del texto del PDF en paralelo a la animación del pipeline
     const file = fileRefs.current.get(id);
     (file ? extractFromFile(file) : Promise.resolve(sampleExtraction(f.name)))
-      .catch(() => ({ ...extractionFor(f.name), meta: undefined }))
+      .catch(() => (file ? emptyExtraction(f.name, 'No se pudo procesar el PDF. No se publicará contenido de ejemplo.') : sampleExtraction(f.name)))
       .then((ex) => {
         setExtractions((e) => ({ ...e, [id]: ex }));
         if (ex.pages && !f.pages) patch(id, { pages: ex.pages });
@@ -225,8 +287,14 @@ export default function IngestionView({
           m.engine === 'ia-cloud'
             ? `✓ Modo de extracción: IA Cloud · ${m.provider} (${m.model})`
             : `✓ Modo de extracción: Motor Local Offline${m.reason ? ` · ${m.reason}` : ''}`,
-          m.method === 'pdf-text' ? `✓ Entidades extraídas del texto real · categoría ${m.category === 'ev' ? 'eléctrico AV' : 'diésel'}` : '  Plantilla aplicada (sin texto extraíble)',
-          ...(m.aiLessons?.length || m.aiQuestions?.length ? [`  IA: ${m.aiLessons?.length ?? 0} lecciones y ${m.aiQuestions?.length ?? 0} preguntas sintetizadas`] : []),
+          m.method === 'pdf-text'
+            ? `✓ Contenido extraído del texto real · ${m.docKind === 'general' ? 'documento general (cursos / guía)' : `manual de taller ${m.category === 'ev' ? 'eléctrico AV' : 'diésel'}`}`
+            : m.method === 'sin-texto'
+              ? '  ⚠ Sin texto extraíble: no se generará contenido'
+              : '  Manual de ejemplo (plantilla de demostración)',
+          ...(m.aiLessons?.length || m.aiQuestions?.length
+            ? [`  ${m.synth === 'ia' ? 'IA' : 'Motor local'}: ${m.aiLessons?.length ?? 0} lecciones y ${m.aiQuestions?.length ?? 0} preguntas generadas del documento`]
+            : []),
           ...m.notes.map((n) => `  ⚠ ${n}`),
         ]);
       }
@@ -273,9 +341,9 @@ export default function IngestionView({
     publishing.current = true;
     const id = active.id;
     try {
-      const { pkg, synced, json } = await publishPackage(result, sel, loadSession()?.email ?? 'supervisor');
+      const { pkg, synced, json } = await publishPackage(result, sel, loadSession()?.email ?? 'supervisor', active.size);
+      patch(id, { status: 'Publicado', packageId: pkg.id });
       onPublish(toPublishedSummary(pkg));
-      patch(id, { status: 'Publicado' });
       setLogs((l) => [
         ...l,
         `✓ Paquete ${pkg.id} publicado · ${pkg.entrenamiento.lecciones.length} lecciones · ${pkg.entrenamiento.preguntas.length} preguntas · ${pkg.entrenamiento.procedimientos.length} procedimiento(s)`,

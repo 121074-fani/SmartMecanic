@@ -198,6 +198,39 @@
   injectAll(readJSON(KEYS.modules, []));
 
   var booted = false;
+
+  var escHtml = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var BANNER_ROUTES = { inicio: 1, ruta: 1, practicar: 1 };
+  /** Aviso con el módulo más reciente del supervisor que tenga lecciones pendientes. */
+  function moduleBanner() {
+    if (typeof S === 'undefined' || !S.user) return;
+    var route = (location.hash || '#/inicio').split('/')[1] || 'inicio';
+    if (!BANNER_ROUTES[route] || location.hash.split('/')[2]) return;
+    var view = document.getElementById('view');
+    if (!view || view.querySelector('.banner[data-bridge]')) return;
+    var mods = latestPerCode(readJSON(KEYS.modules, [])).sort(function (a, b) { return String(b.fechaPublicacion).localeCompare(String(a.fechaPublicacion)); });
+    var done = S.lessonsDone || {};
+    var pending = [];
+    mods.forEach(function (m) {
+      var lessons = G.LESSONS.filter(function (l) { return l.moduloId === m.id; });
+      var todo = lessons.filter(function (l) { return done[l.id] == null; });
+      var procs = G.PROCEDURES.filter(function (p) { return p.moduloId === m.id; });
+      if (todo.length || (procs.length && !(S.procs || []).some(function (x) { return x.id === procs[0].id; }))) pending.push({ m: m, todo: todo, total: lessons.length, procs: procs });
+    });
+    if (!pending.length) return;
+    var p = pending[0];
+    var target = p.todo.length ? 'leccion/' + p.todo[0].id : 'taller/' + p.procs[0].id;
+    var div = document.createElement('div');
+    div.className = 'banner';
+    div.setAttribute('data-bridge', 'modulos');
+    div.innerHTML = '📦 Nuevo de tu supervisor: <b>' + escHtml(p.m.nombre) + '</b> · ' +
+      (p.todo.length ? (p.total - p.todo.length) + ' de ' + p.total + ' micro-lecciones' : 'práctica en el Taller') +
+      (pending.length > 1 ? ' <span class="muted">(+' + (pending.length - 1) + ' módulo(s) más)</span>' : '') +
+      ' → <u>' + (p.todo.length && p.todo.length < p.total ? 'continuar' : 'empezar') + '</u>';
+    div.addEventListener('click', function () { if (typeof go === 'function') go(target); });
+    var sub = view.querySelector('.subnav');
+    if (sub) sub.insertAdjacentElement('afterend', div); else view.prepend(div);
+  }
   var LIST_ROUTES = { inicio: 1, ruta: 1, taller: 1, practicar: 1, tablero: 1 };
   function onNewModules(fresh) {
     if (!fresh.length || !booted) return;
@@ -427,6 +460,17 @@
       return r;
     };
     booted = true;
+
+    // Aviso de módulos del supervisor (estilo .banner existente) en Inicio / Mi ruta / Practicar,
+    // visible aunque el técnico aún no haga el diagnóstico (que oculta la ruta).
+    if (typeof render === 'function') {
+      var originalRender = render;
+      window.render = function () {
+        var r = originalRender.apply(this, arguments);
+        try { moduleBanner(); } catch (err) { console.warn('[bridge] aviso de módulos', err); }
+        return r;
+      };
+    }
 
     // botón "Cerrar sesión" del pie de la barra lateral (solo con sesión unificada)
     var logoutBtn = document.getElementById('logoutBtn');
